@@ -1,0 +1,7 @@
+[[test]]
+name = "weather_integration_test"
+path = "weather_integration_test.rs"
+
+[[test]]
+name = "database_integration_test"
+path = "database_integration_test.rs"
