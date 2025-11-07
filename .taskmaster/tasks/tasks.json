@@ -1,0 +1,666 @@
+{
+  "master": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Set up Rust + Axum + Elm with Vite project structure",
+        "description": "Initialize Cargo workspace with Rust backend using Axum web framework, and Elm frontend with Vite build tooling via elm-vite-plugin for hot-reload development.",
+        "details": "Create Cargo workspace: `cargo init --lib core && cargo init --bin server`. In server directory, add dependencies to Cargo.toml: axum (0.7), tokio (full features), sqlx (sqlite, runtime-tokio-rustls), reqwest (json), serde (derive), serde_json, tower-http (for CORS and static files), tokio-cron-scheduler, axum-typed-websockets, tracing, tracing-subscriber, dotenv. For frontend: `npm create vite@latest elm -- --template vanilla`, then `npm install -D vite vite-plugin-elm`. Create vite.config.js: import { defineConfig } from 'vite'; import { plugin as elm } from 'vite-plugin-elm'; export default defineConfig({ plugins: [elm()] }). Initialize Elm: `cd elm && elm init`. Create static/ directory for Vite build output. Configure Axum to serve static files from dist/.",
+        "testStrategy": "Verify Cargo workspace builds with `cargo build`. Start Vite dev server with `npm run dev` and check Elm compiles with hot-reload. Run `cargo run` to start Axum server, verify it serves static files on http://localhost:3000.",
+        "priority": "high",
+        "dependencies": [],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Initialize Cargo workspace and add Rust dependencies",
+            "description": "Set up the Cargo workspace by creating the core library and server binary, then add all necessary dependencies for the Axum backend.",
+            "dependencies": [],
+            "details": "Execute `cargo init --lib core && cargo init --bin server` to create the workspace structure. In the server directory, update Cargo.toml to include dependencies: axum (0.7), tokio (full features), sqlx (sqlite, runtime-tokio-rustls), reqwest (json), serde (derive), serde_json, tower-http (for CORS and static files), tokio-cron-scheduler, axum-typed-websockets, tracing, tracing-subscriber, dotenv. Ensure the workspace is properly configured in the root Cargo.toml.",
+            "status": "pending",
+            "testStrategy": "Run `cargo build` to verify the workspace compiles without errors and all dependencies are resolved."
+          },
+          {
+            "id": 2,
+            "title": "Set up Elm frontend with Vite and plugins",
+            "description": "Initialize the Elm project using Vite as the build tool, install necessary plugins for hot-reload development.",
+            "dependencies": [],
+            "details": "Run `npm create vite@latest elm -- --template vanilla` to create the Vite project with Elm template. Then install development dependencies with `npm install -D vite vite-plugin-elm`. Create vite.config.js with the following content: import { defineConfig } from 'vite'; import { plugin as elm } from 'vite-plugin-elm'; export default defineConfig({ plugins: [elm()] }). Navigate to the elm directory and run `elm init` to initialize the Elm project.",
+            "status": "pending",
+            "testStrategy": "Start the Vite dev server with `npm run dev` and check that Elm compiles successfully with hot-reload functionality enabled."
+          },
+          {
+            "id": 3,
+            "title": "Configure build process and verify integration",
+            "description": "Set up the static directory for Vite build output and configure Axum to serve static files, then verify the entire setup integrates correctly.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Create a static/ directory to hold the Vite build output. Configure Axum in the server code to serve static files from the dist/ directory (which Vite outputs). Ensure the Axum server is set up to handle the integration, including any necessary routing for static assets. This involves modifying the server code to include static file serving middleware.",
+            "status": "pending",
+            "testStrategy": "Run `cargo run` to start the Axum server and verify it serves static files on http://localhost:3000. Additionally, ensure the Vite build process outputs to the correct directory and integrates with the Rust backend without conflicts."
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Design and implement SQLite database schema with sqlx migrations",
+        "description": "Create normalized database schema for students, bookings, weather logs, reschedule events, and configurable weather minimums using SQLite with sqlx for compile-time type-safe queries.",
+        "details": "In core/ crate, define Rust structs: Student { id: String, name: String, email: String, phone: String, training_level: TrainingLevel }, Location { lat: f64, lon: f64, name: String }, Booking { id: String, student_id: String, scheduled_date: DateTime<Utc>, departure_location: Location (as JSON TEXT), status: BookingStatus }, WeatherCheck { id: String, booking_id: String, checked_at: DateTime<Utc>, weather_data: String (JSON), is_safe: bool, reason: Option<String> }, RescheduleEvent { id: String, booking_id: String, original_date: DateTime<Utc>, new_date: DateTime<Utc>, suggested_by: String, ai_suggestions: Option<String> (JSON) }, WeatherMinimum { id: String, training_level: TrainingLevel, min_visibility_sm: f64, max_wind_speed_kt: f64, min_ceiling_ft: Option<f64>, allow_imc: bool, no_thunderstorms: bool, no_icing: bool }. Define enums: TrainingLevel (StudentPilot, PrivatePilot, InstrumentRated), BookingStatus (Scheduled, Cancelled, Rescheduled, Completed). Create migrations/ directory with 001_init.sql: CREATE TABLE students, bookings (with FK), weather_checks, reschedule_events, weather_minimums. Use sqlx::query! and sqlx::query_as! for type-safe queries. DATABASE_URL in .env: sqlite:///data/weather_app.db (for production) or sqlite:weather_app.db (dev).",
+        "testStrategy": "Unit tests for serde JSON serialization of Location. Run `sqlx migrate run` to apply migrations. Integration tests with sqlx::test: insert Student, insert Booking with FK, query back, verify JSON deserialization. Test concurrent writes: spawn multiple tokio tasks inserting data, verify no corruption. Use `cargo sqlx prepare` for compile-time verification.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define Rust structs and enums for database entities",
+            "description": "Define the necessary Rust structs and enums in the core crate to represent the database entities such as Student, Location, Booking, WeatherCheck, RescheduleEvent, and WeatherMinimum, along with the enums TrainingLevel and BookingStatus.",
+            "dependencies": [],
+            "details": "In core/src/models.rs or similar, define the structs with the specified fields, ensuring proper derives for serde::Serialize and serde::Deserialize for JSON handling, and sqlx::FromRow for query results. Enums should derive necessary traits for database storage.",
+            "status": "pending",
+            "testStrategy": "Unit tests for serde JSON serialization and deserialization of Location and other complex fields to ensure correct handling of JSON TEXT in SQLite."
+          },
+          {
+            "id": 2,
+            "title": "Create SQL migration files for SQLite schema",
+            "description": "Create the migrations directory and the initial migration file 001_init.sql to set up the normalized SQLite database schema with tables for students, bookings, weather_checks, reschedule_events, and weather_minimums, including foreign keys and constraints.",
+            "dependencies": [
+              1
+            ],
+            "details": "In the migrations/ directory, create 001_init.sql with CREATE TABLE statements for each entity, defining columns with appropriate types (e.g., TEXT for strings, REAL for floats, INTEGER for booleans), foreign key constraints (e.g., bookings.student_id REFERENCES students(id)), and any necessary indexes for performance.",
+            "status": "pending",
+            "testStrategy": "Run `sqlx migrate run` to apply the migrations and verify the schema is created correctly without errors, checking table existence and constraints via SQLite CLI or sqlx queries."
+          },
+          {
+            "id": 3,
+            "title": "Implement type-safe queries with sqlx",
+            "description": "Implement compile-time type-safe queries using sqlx::query! and sqlx::query_as! for CRUD operations on the defined structs, ensuring proper integration with the SQLite database.",
+            "dependencies": [
+              2
+            ],
+            "details": "In core/src/queries.rs or relevant modules, write functions for inserting, updating, selecting, and deleting records, using sqlx macros to bind parameters and return typed results. Handle JSON serialization for fields like departure_location and weather_data using serde_json.",
+            "status": "pending",
+            "testStrategy": "Integration tests with sqlx::test: insert Student, insert Booking with foreign key, query back and verify data integrity including JSON deserialization. Test concurrent writes by spawning multiple tokio tasks to insert data and verify no corruption or race conditions."
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Integrate OpenWeatherMap API for real-time weather data",
+        "description": "Implement weather API client using reqwest to fetch current conditions and 7-day forecasts from OpenWeatherMap, with unit conversion and error handling.",
+        "details": "In core/src/weather/api.rs, create struct WeatherClient { client: reqwest::Client, api_key: String, base_url: String }. Implement async methods: fetch_current_weather(lat: f64, lon: f64) -> Result<WeatherData> and fetch_forecast(lat: f64, lon: f64) -> Result<Vec<WeatherData>>. Define WeatherData struct: visibility_miles: f64, wind_speed_knots: f64, ceiling_ft: Option<f64>, temperature_f: f64, conditions: String, has_thunderstorms: bool, has_icing: bool, date_time: DateTime<Utc>. Parse OpenWeatherMap JSON (visibility in meters, wind in m/s) and convert: meters → miles (× 0.000621371), m/s → knots (× 1.94384), Kelvin → Fahrenheit ((K - 273.15) × 9/5 + 32). Check weather.main for \"Thunderstorm\", check temperature < 32°F && clouds for icing risk. Use dotenv to load WEATHER_API_KEY and WEATHER_API_BASE_URL from .env. Add exponential backoff retry logic (3 attempts) for network failures.",
+        "testStrategy": "Unit tests with wiremock: mock OpenWeatherMap API responses, verify JSON parsing and unit conversions are correct. Test error handling: mock 404, 500, timeout responses. Integration test with real API key (optional, use #[ignore]). Property test conversions: 0 meters = 0 miles, 10 m/s ≈ 19.4 knots.",
+        "priority": "high",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define WeatherClient struct and async methods",
+            "description": "Create the WeatherClient struct with reqwest::Client, api_key, and base_url fields in core/src/weather/api.rs. Implement the async methods fetch_current_weather and fetch_forecast that take latitude and longitude and return Result types.",
+            "dependencies": [],
+            "details": "In core/src/weather/api.rs, define the struct WeatherClient { client: reqwest::Client, api_key: String, base_url: String }. Add async fn fetch_current_weather(lat: f64, lon: f64) -> Result<WeatherData> and async fn fetch_forecast(lat: f64, lon: f64) -> Result<Vec<WeatherData>>. Use dotenv to load WEATHER_API_KEY and WEATHER_API_BASE_URL from .env file.",
+            "status": "pending",
+            "testStrategy": null
+          },
+          {
+            "id": 2,
+            "title": "Implement JSON parsing and unit conversions",
+            "description": "Parse OpenWeatherMap JSON responses and convert units: visibility from meters to miles, wind speed from m/s to knots, temperature from Kelvin to Fahrenheit. Detect thunderstorms and icing conditions.",
+            "dependencies": [
+              1
+            ],
+            "details": "Define the WeatherData struct with fields: visibility_miles, wind_speed_knots, ceiling_ft, temperature_f, conditions, has_thunderstorms, has_icing, date_time. Implement parsing logic to convert: meters * 0.000621371 to miles, m/s * 1.94384 to knots, (K - 273.15) * 9/5 + 32 to Fahrenheit. Check weather.main for 'Thunderstorm', and temperature < 32°F with clouds for icing.",
+            "status": "pending",
+            "testStrategy": null
+          },
+          {
+            "id": 3,
+            "title": "Add error handling and exponential backoff retries",
+            "description": "Implement robust error handling for network failures, including exponential backoff retry logic with up to 3 attempts for API calls.",
+            "dependencies": [
+              1
+            ],
+            "details": "Wrap API calls in retry logic using exponential backoff for network errors. Handle potential HTTP errors like 404, 500, and timeouts. Ensure the methods return appropriate Result types with custom error handling for failed requests or parsing issues.",
+            "status": "pending",
+            "testStrategy": null
+          },
+          {
+            "id": 4,
+            "title": "Write unit and property-based tests",
+            "description": "Create comprehensive tests using wiremock to mock API responses, verify parsing, conversions, error handling, and include property-based tests for unit conversions.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Use wiremock to simulate OpenWeatherMap API responses. Write unit tests for successful parsing and conversions, error scenarios (404, 500, timeout), and property-based tests with proptest for conversions (e.g., 0 meters = 0 miles, 10 m/s ≈ 19.4 knots). Optionally include an integration test with real API key marked as #[ignore].",
+            "status": "pending",
+            "testStrategy": "Unit tests with wiremock: mock OpenWeatherMap API responses, verify JSON parsing and unit conversions are correct. Test error handling: mock 404, 500, timeout responses. Integration test with real API key (optional, use #[ignore]). Property test conversions: 0 meters = 0 miles, 10 m/s ≈ 19.4 knots."
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Implement weather conflict detection with training level safety logic",
+        "description": "Develop safety checking logic using pattern matching on TrainingLevel enum to determine if weather conditions are safe for flight, with configurable minimums from database.",
+        "details": "In core/src/weather/safety.rs, implement fn is_flight_safe(training_level: &TrainingLevel, weather: &WeatherData, minimums: &WeatherMinimum) -> (bool, Option<String>). Return tuple of (is_safe, reason). Use match on training_level with rules from PRD: StudentPilot (clear skies, vis > minimum, winds < minimum, no low clouds <3000ft), PrivatePilot (vis > 3mi, ceiling > 1000ft, winds < 20kt), InstrumentRated (allow IMC, but no thunderstorms && no icing). Load minimums from weather_minimums table at startup, cache in memory (Arc<HashMap<TrainingLevel, WeatherMinimum>>). If weather unsafe, generate detailed reason string: 'Visibility 2.5mi below minimum 3mi for Private Pilot'. Implement fn calculate_weather_score(training_level: &TrainingLevel, weather: &WeatherData) -> f32 returning 0-10 score for AI ranking (10 = perfect conditions).",
+        "testStrategy": "Unit tests for each training level with various weather scenarios. Property-based testing with proptest: generate random WeatherData, verify StudentPilot is subset of PrivatePilot (stricter rules). Test edge cases: exactly at minimums (should pass), 0.1 below minimums (should fail). Test reason strings are descriptive. Test with database-loaded minimums override hardcoded values.",
+        "priority": "high",
+        "dependencies": [
+          2,
+          3
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Load and cache weather minimums from database",
+            "description": "Implement loading of configurable weather minimums from the weather_minimums table at startup and cache them in memory using Arc<HashMap<TrainingLevel, WeatherMinimum>>.",
+            "dependencies": [],
+            "details": "In core/src/weather/safety.rs or a related module, add code to query the weather_minimums table using the database connection, load the minimums into a HashMap keyed by TrainingLevel, wrap in Arc for shared access, and ensure this is done at application startup. Handle potential database errors gracefully.",
+            "status": "pending",
+            "testStrategy": "Unit tests to verify loading from a mock database, integration tests to check caching persists across requests, and error handling tests for database failures."
+          },
+          {
+            "id": 2,
+            "title": "Implement safety checking function with pattern matching",
+            "description": "Develop the is_flight_safe function using pattern matching on TrainingLevel enum to check if weather conditions are safe for flight based on PRD rules, returning a tuple of (bool, Option<String>).",
+            "dependencies": [
+              1
+            ],
+            "details": "In core/src/weather/safety.rs, implement fn is_flight_safe(training_level: &TrainingLevel, weather: &WeatherData, minimums: &WeatherMinimum) -> (bool, Option<String>). Use match on training_level with specific rules: StudentPilot (clear skies, vis > minimum, winds < minimum, no low clouds <3000ft), PrivatePilot (vis > 3mi, ceiling > 1000ft, winds < 20kt), InstrumentRated (allow IMC, but no thunderstorms && no icing). Generate detailed reason strings for unsafe conditions. Also implement fn calculate_weather_score for AI ranking.",
+            "status": "pending",
+            "testStrategy": "Unit tests for each training level with various weather scenarios, property-based testing to ensure StudentPilot rules are stricter than PrivatePilot, test edge cases like exactly at minimums (pass) and slightly below (fail), and verify reason strings are accurate."
+          }
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Integrate OpenAI API for structured AI rescheduling suggestions",
+        "description": "Use OpenAI chat completions API with gpt-4o-mini and structured JSON output to generate 3 reschedule options, with caching and fallback logic.",
+        "details": "In core/src/ai/reschedule.rs, define structs: RescheduleOption { date_time: DateTime<Utc>, reason: String, weather_score: f32, instructor_available: bool }, RescheduleResponse { options: Vec<RescheduleOption> }. Implement async fn generate_reschedule_options(booking: &Booking, student: &Student, weather_forecast: &[WeatherData], instructor_schedule: &[Booking]) -> Result<Vec<RescheduleOption>>. Build context prompt including: student name/training_level, original booking time, departure location, 7-day weather forecast (formatted), instructor availability, weather minimums. Use reqwest to POST https://api.openai.com/v1/chat/completions with headers: Authorization: Bearer $OPENAI_API_KEY. Request body: model: 'gpt-4o-mini', messages: [{role: 'system', content: 'You are a flight scheduling assistant. Always return valid JSON.'}, {role: 'user', content: prompt}], temperature: 0.7, response_format: { type: 'json_object' }. Parse response JSON into RescheduleResponse, validate options.len() >= 3, else use fallback. Implement fallback: generate_fallback_options() that finds next 3 days with safe weather using is_flight_safe(). Implement AiCache struct with RwLock<HashMap<String, (RescheduleResponse, DateTime<Utc>)>> for 6hr TTL caching keyed by 'booking_id_scheduled_date'.",
+        "testStrategy": "Unit tests with wiremock for OpenAI API: mock successful response, verify parsing. Test fallback: mock AI returning <3 options or invalid JSON. Test caching: first call misses cache (API called), second call hits cache (no API call). Integration test: provide real booking data, verify 3 valid DateTime options returned with reasons. Test cost: verify cache prevents duplicate calls for same booking.",
+        "priority": "medium",
+        "dependencies": [
+          2,
+          4
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Define RescheduleOption and RescheduleResponse structs and build context prompt",
+            "description": "In core/src/ai/reschedule.rs, define the structs RescheduleOption { date_time: DateTime<Utc>, reason: String, weather_score: f32, instructor_available: bool } and RescheduleResponse { options: Vec<RescheduleOption> }. Implement the logic to build the context prompt including student name/training_level, original booking time, departure location, 7-day weather forecast (formatted), instructor availability, and weather minimums.",
+            "dependencies": [],
+            "details": "Ensure the structs are properly defined with serde derive for JSON serialization and deserialization. The prompt building function should take inputs like booking, student, weather_forecast, and instructor_schedule, and construct a detailed string that provides context for the AI to generate reschedule options. This includes formatting the weather data into a readable format and including all necessary details for accurate suggestions.",
+            "status": "pending",
+            "testStrategy": null
+          },
+          {
+            "id": 2,
+            "title": "Implement OpenAI API call with reqwest and parse structured JSON response",
+            "description": "Use reqwest to POST to https://api.openai.com/v1/chat/completions with headers including Authorization: Bearer $OPENAI_API_KEY. The request body should include model: 'gpt-4o-mini', messages with system and user roles, temperature: 0.7, and response_format: { type: 'json_object' }. Parse the response JSON into RescheduleResponse and validate that options.len() >= 3.",
+            "dependencies": [
+              1
+            ],
+            "details": "Implement an async function that constructs the request body using the prompt from subtask 1. Handle the HTTP response, deserialize the JSON, and validate the structure. If parsing fails or options are insufficient, prepare for fallback in the next subtask. Ensure error handling for network issues and API errors.",
+            "status": "pending",
+            "testStrategy": null
+          },
+          {
+            "id": 3,
+            "title": "Implement AiCache for TTL caching and fallback options generation",
+            "description": "Implement AiCache struct with RwLock<HashMap<String, (RescheduleResponse, DateTime<Utc>)>> for 6-hour TTL caching, keyed by 'booking_id_scheduled_date'. Add fallback logic: if API response is invalid or has <3 options, call generate_fallback_options() to find next 3 days with safe weather using is_flight_safe().",
+            "dependencies": [
+              2
+            ],
+            "details": "The cache should check for existing entries before making API calls and expire entries after 6 hours. The fallback function should iterate through upcoming days, check weather safety, instructor availability, and generate basic options with reasons. Integrate this into the main generate_reschedule_options function to return Vec<RescheduleOption>.",
+            "status": "pending",
+            "testStrategy": null
+          },
+          {
+            "id": 4,
+            "title": "Add unit tests with wiremock for API responses, caching, and fallback",
+            "description": "Use wiremock to mock OpenAI API responses for successful parsing, invalid JSON, and insufficient options. Test caching: first call misses cache (API called), second call hits cache (no API call). Test fallback scenarios and verify parsing and validation logic.",
+            "dependencies": [
+              3
+            ],
+            "details": "Create unit tests in core/src/ai/reschedule.rs or a separate tests module. Mock various API responses including valid JSON with 3+ options, invalid JSON, and responses with fewer than 3 options. Verify that caching prevents redundant API calls and that fallback generates appropriate options. Ensure tests cover error handling and edge cases.",
+            "status": "pending",
+            "testStrategy": "Unit tests with wiremock for OpenAI API: mock successful response, verify parsing. Test fallback: mock AI returning <3 options or invalid JSON. Test caching: first call misses cache (API called), second call hits cache (no API call)."
+          }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Build WebSocket notification system with Tokio broadcast channels",
+        "description": "Implement real-time push notifications using Axum WebSocket handler and tokio::sync::broadcast for pub/sub, enabling live dashboard updates.",
+        "details": "In server/src/routes/websocket.rs, define type NotificationChannel = broadcast::Sender<String>. Create channel in main(): let (tx, _rx) = broadcast::channel::<String>(100); store tx in Axum State. Define WebSocket route: async fn ws_handler(ws: WebSocketUpgrade, State(tx): State<NotificationChannel>) -> Response { ws.on_upgrade(move |socket| handle_socket(socket, tx)) }. In handle_socket(), subscribe to broadcast: let mut rx = tx.subscribe(); loop: while let Ok(msg) = rx.recv().await { socket.send(Message::Text(msg)).await; }. Handle disconnects gracefully. Define notification types as JSON: WeatherConflict { type: 'WEATHER_CONFLICT', booking_id, message }, BookingCancelled, RescheduleOptionsAvailable { type: 'RESCHEDULE_OPTIONS', booking_id, options: Vec<RescheduleOption> }. When conflict detected in scheduler, serialize notification to JSON and tx.send(json_string). Add heartbeat: send Ping frames every 30s, close connection if no Pong after 60s.",
+        "testStrategy": "Unit tests: create channel, send message, verify receiver gets it. Integration tests: connect WebSocket client (using tokio-tungstenite), send test notification via broadcast, verify client receives JSON message. Test multiple clients: connect 3 clients, send 1 notification, all 3 receive it. Test reconnection: disconnect client, reconnect, verify new subscription works. E2E test: trigger conflict in backend, verify WebSocket client receives notification without polling.",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Tokio broadcast channel and Axum WebSocket handler",
+            "description": "Create the broadcast channel in the main function and define the Axum WebSocket route handler to upgrade connections.",
+            "dependencies": [],
+            "details": "In server/src/routes/websocket.rs, define type NotificationChannel = broadcast::Sender<String>. In main(), create the channel: let (tx, _rx) = broadcast::channel::<String>(100); and store tx in Axum State. Define the WebSocket route: async fn ws_handler(ws: WebSocketUpgrade, State(tx): State<NotificationChannel>) -> Response { ws.on_upgrade(move |socket| handle_socket(socket, tx)) }. This sets up the foundation for pub/sub notifications.",
+            "status": "pending",
+            "testStrategy": "Unit tests: create channel, send message, verify receiver gets it. Integration tests: connect WebSocket client, verify upgrade works."
+          },
+          {
+            "id": 2,
+            "title": "Implement WebSocket connection handling with heartbeats",
+            "description": "Handle incoming WebSocket connections, subscribe to the broadcast channel, and manage heartbeats for connection health.",
+            "dependencies": [
+              1
+            ],
+            "details": "In handle_socket(), subscribe to the broadcast: let mut rx = tx.subscribe(); then loop: while let Ok(msg) = rx.recv().await { socket.send(Message::Text(msg)).await; }. Add heartbeat logic: send Ping frames every 30 seconds, and close the connection if no Pong is received after 60 seconds. Handle disconnects gracefully to prevent resource leaks.",
+            "status": "pending",
+            "testStrategy": "Integration tests: connect WebSocket client, send test notification via broadcast, verify client receives JSON message. Test multiple clients: connect 3 clients, send 1 notification, all 3 receive it. Test heartbeats: simulate no Pong, verify connection closes."
+          },
+          {
+            "id": 3,
+            "title": "Define notification types and implement broadcasting",
+            "description": "Define JSON notification types and implement logic to serialize and broadcast notifications when events occur.",
+            "dependencies": [
+              1
+            ],
+            "details": "Define notification types as JSON structs: WeatherConflict { type: 'WEATHER_CONFLICT', booking_id, message }, BookingCancelled, RescheduleOptionsAvailable { type: 'RESCHEDULE_OPTIONS', booking_id, options: Vec<RescheduleOption> }. When a conflict is detected in the scheduler, serialize the notification to JSON and call tx.send(json_string). Ensure broadcasting integrates with the existing scheduler logic.",
+            "status": "pending",
+            "testStrategy": "Unit tests: serialize notification types to JSON, verify format. Integration tests: trigger conflict in scheduler, verify notification is broadcasted and received by connected clients."
+          }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Develop Elm frontend with Vite and WebSocket ports integration",
+        "description": "Create Elm SPA using Vite with elm-vite-plugin for hot-reload, implementing dashboard with HTTP API calls and WebSocket ports for real-time updates.",
+        "details": "In elm/ directory, structure: src/Main.elm (entry), src/Types.elm (type aliases), src/Api.elm (HTTP), src/WebSocket.elm (ports), src/Pages/Dashboard.elm, src/Pages/Bookings.elm, src/Pages/Alerts.elm. In Types.elm, define: type alias Student = { id: String, name: String, email: String, phone: String, trainingLevel: String }, type alias Booking = { id: String, studentId: String, scheduledDate: String, departureLocation: Location, status: String }, type alias Alert = { type: String, bookingId: String, message: String }. In Api.elm, use elm/http to define: getBookings : Cmd Msg, createBooking : BookingForm -> Cmd Msg, getStudents : Cmd Msg (all targeting /api/*). In WebSocket.elm, define port module: port websocketIn : (String -> msg) -> Sub msg, port websocketOut : String -> Cmd msg. In Main.elm, subscriptions: websocketIn WebSocketMessageReceived. Decode JSON from WebSocket, update model with new alerts. In main.js (Vite entry), initialize Elm app, connect WebSocket: const ws = new WebSocket('ws://localhost:3000/ws'); ws.onopen = () => app.ports.websocketOut?.subscribe(msg => ws.send(msg)); ws.onmessage = e => app.ports.websocketIn?.send(e.data); ws.onerror/onclose → reconnect logic. Use elm-ui or Tailwind CSS for styling. Configure vite.config.js with elmPlugin({ debug: false, optimize: true }).",
+        "testStrategy": "Run `npm run dev`, verify Elm compiles and hot-reloads work. Unit tests with elm-test for update functions: test WebSocketMessageReceived adds alert to model. Integration test: start Axum server, open Elm UI in browser, trigger backend event, verify UI updates without refresh. Test HTTP API: create booking via form, verify POST succeeds and booking appears in list. E2E with Playwright: navigate to dashboard, verify WebSocket connects (check dev console), trigger notification, assert alert appears.",
+        "priority": "medium",
+        "dependencies": [
+          1
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up Elm project structure and define types",
+            "description": "Initialize the Elm project in the elm/ directory with the specified file structure, including Main.elm, Types.elm, Api.elm, WebSocket.elm, and page modules. Define all type aliases in Types.elm as specified.",
+            "dependencies": [],
+            "details": "Create the elm/ directory and set up src/Main.elm as the entry point, src/Types.elm for type aliases like Student, Booking, Alert, and Location. Ensure the project uses Vite with elm-vite-plugin for hot-reload. Configure vite.config.js accordingly.",
+            "status": "pending",
+            "testStrategy": "Run `npm run dev` to verify Elm compiles and hot-reload works without errors."
+          },
+          {
+            "id": 2,
+            "title": "Implement HTTP API calls in Api.elm",
+            "description": "Use elm/http to define functions for API interactions, including getBookings, createBooking, and getStudents, targeting /api/* endpoints.",
+            "dependencies": [
+              1
+            ],
+            "details": "In src/Api.elm, implement the HTTP commands using elm/http library. Handle responses and errors appropriately, integrating with the Msg system for updating the model. Ensure commands are called from Main.elm or page modules.",
+            "status": "pending",
+            "testStrategy": "Unit tests with elm-test to verify API functions return expected Cmd Msg and handle mock responses correctly."
+          },
+          {
+            "id": 3,
+            "title": "Integrate WebSocket ports for real-time updates",
+            "description": "Define port module in WebSocket.elm with websocketIn and websocketOut ports, and handle subscriptions in Main.elm for decoding JSON and updating the model with new alerts.",
+            "dependencies": [
+              1
+            ],
+            "details": "Create src/WebSocket.elm as a port module. In Main.elm, set up subscriptions for websocketIn to receive messages. Implement logic to decode incoming JSON and update the model with alerts. In main.js, connect to WebSocket and wire ports for sending and receiving messages, including reconnect logic.",
+            "status": "pending",
+            "testStrategy": "Integration test: Start a mock WebSocket server, send test messages, and verify the Elm model updates correctly via ports."
+          },
+          {
+            "id": 4,
+            "title": "Build the dashboard UI with pages and styling",
+            "description": "Develop the SPA dashboard using Elm, including pages for Dashboard, Bookings, and Alerts, with elm-ui or Tailwind CSS for styling.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Implement src/Pages/Dashboard.elm, src/Pages/Bookings.elm, and src/Pages/Alerts.elm with views and update logic. Use elm-ui or integrate Tailwind CSS for responsive styling. Ensure the UI displays data from HTTP calls and updates in real-time via WebSockets.",
+            "status": "pending",
+            "testStrategy": "Manual testing: Run the app, navigate pages, verify UI renders correctly and updates with API data and WebSocket messages."
+          },
+          {
+            "id": 5,
+            "title": "Test the Elm frontend with E2E tools",
+            "description": "Perform end-to-end testing using tools like Playwright to simulate user interactions and verify full workflow from booking creation to real-time updates.",
+            "dependencies": [
+              1,
+              2,
+              3,
+              4
+            ],
+            "details": "Write E2E tests to cover creating bookings, checking HTTP API responses, and confirming WebSocket notifications update the UI without refresh. Use Playwright or similar to automate browser interactions.",
+            "status": "pending",
+            "testStrategy": "Run E2E tests with Playwright: Simulate booking creation, trigger WebSocket events, and assert UI updates in real-time."
+          }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Implement Axum REST API endpoints and static file serving",
+        "description": "Create RESTful API routes in Axum for CRUD operations on bookings/students, WebSocket upgrade endpoint, and serve Vite-built Elm frontend as static files.",
+        "details": "In server/src/main.rs, define Axum Router: let app = Router::new().nest('/api', api_routes()).route('/ws', get(ws_handler)).nest_service('/', ServeDir::new('dist')).fallback(serve_spa).layer(CorsLayer::permissive()).with_state(app_state). In server/src/routes/bookings.rs, implement: async fn list_bookings(State(db): State<SqlitePool>) -> Result<Json<Vec<Booking>>>, async fn create_booking(State(db): State<SqlitePool>, Json(booking): Json<CreateBookingRequest>) -> Result<(StatusCode, Json<Booking>), StatusCode>, async fn get_booking(Path(id): Path<String>, State(db): State<SqlitePool>) -> Result<Json<Booking>>, async fn reschedule_booking(Path(id): Path<String>, State(db): State<SqlitePool>, Json(req): Json<RescheduleRequest>) -> Result<Json<Booking>>. Similar for students routes. Use validator crate for input validation. Return proper status codes: 200 OK, 201 Created, 400 Bad Request, 404 Not Found, 500 Internal Server Error. In serve_spa fallback, return index.html for client-side routing. Use tower_http::services::ServeDir to serve Vite output from dist/. Add health check: .route('/health', get(|| async { Json(json!({ 'status': 'ok' })) })).",
+        "testStrategy": "Integration tests with reqwest: start test server, call GET /api/bookings (expect 200 + JSON array), POST /api/bookings with valid data (expect 201 + created booking), POST with invalid data (expect 400). Test CORS: make request from different origin. Test static files: GET /, verify returns index.html; GET /nonexistent, verify returns index.html (SPA fallback). Use sqlx::test for database setup in tests.",
+        "priority": "medium",
+        "dependencies": [
+          2,
+          7
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement CRUD routes and handlers for bookings and students",
+            "description": "Create async handler functions for listing, creating, getting, and updating bookings and students in the respective route files, including the WebSocket upgrade endpoint.",
+            "dependencies": [],
+            "details": "In server/src/routes/bookings.rs and server/src/routes/students.rs, implement the specified async functions using State<SqlitePool> for database access, and add the /ws route with ws_handler in main.rs.",
+            "status": "pending",
+            "testStrategy": "Integration tests with reqwest to verify GET /api/bookings returns 200 with JSON array, POST /api/bookings with valid data returns 201."
+          },
+          {
+            "id": 2,
+            "title": "Add input validation and error handling",
+            "description": "Integrate the validator crate for validating incoming JSON requests and implement proper error responses with correct HTTP status codes.",
+            "dependencies": [
+              1
+            ],
+            "details": "Apply validation to CreateBookingRequest and similar structs, handle database errors and invalid inputs by returning StatusCode 400 for bad requests, 404 for not found, and 500 for internal errors in all handlers.",
+            "status": "pending",
+            "testStrategy": "Test POST endpoints with invalid data to ensure 400 Bad Request is returned, and verify error messages are appropriate."
+          },
+          {
+            "id": 3,
+            "title": "Configure static file serving, CORS, and health check",
+            "description": "Set up the Axum router to serve static files from the dist/ directory, add CORS layer, implement SPA fallback, and include a health check endpoint.",
+            "dependencies": [],
+            "details": "In server/src/main.rs, configure the Router with nest_service for '/', ServeDir::new('dist'), fallback to serve_spa for client-side routing, add CorsLayer::permissive(), and route '/health' to return JSON status.",
+            "status": "pending",
+            "testStrategy": "Test GET / returns index.html, verify CORS allows cross-origin requests, and check GET /health returns {'status': 'ok'}."
+          }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Implement email and SMS notifications with trait abstraction",
+        "description": "Create notification system with Resend for emails and trait-based Twilio integration (with mock fallback) for SMS, triggered on weather conflicts.",
+        "details": "In core/src/notifications/email.rs, use reqwest to POST https://api.resend.com/emails with Authorization: Bearer $RESEND_API_KEY. Define async fn send_conflict_email(to: &str, booking: &Booking, options: &[RescheduleOption]) -> Result<()>. Use HTML email template with booking details and 3 reschedule options as buttons/links. In core/src/notifications/sms.rs, define #[async_trait] trait SmsProvider { async fn send_sms(&self, to: &str, message: &str) -> Result<()> }. Implement TwilioProvider { account_sid, auth_token, from_number, client: reqwest::Client } with send_sms() POSTing to https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json with basic_auth. Implement MockSmsProvider with send_sms() logging via tracing::info!('📱 [MOCK SMS] To: {}, Message: {}', to, message). Create pub fn create_sms_provider() -> Box<dyn SmsProvider>: if env vars TWILIO_* exist, return Box::new(TwilioProvider::new()), else return Box::new(MockSmsProvider). Store provider in Axum State. When conflict detected: send_conflict_email() and sms_provider.send_sms().",
+        "testStrategy": "Unit tests: TwilioProvider with wiremock to verify Twilio API call format, MockSmsProvider verifies tracing log output. Test factory: with env vars → returns TwilioProvider, without → returns MockSmsProvider. Integration test: trigger conflict, verify both email API called (wiremock) and SMS provider invoked. E2E: run app without Twilio credentials, trigger conflict, check logs for '[MOCK SMS]'.",
+        "priority": "medium",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement email sending with Resend API",
+            "description": "Create the email notification functionality using the Resend API to send conflict emails with booking details and reschedule options.",
+            "dependencies": [],
+            "details": "In core/src/notifications/email.rs, use reqwest to POST to https://api.resend.com/emails with Authorization: Bearer $RESEND_API_KEY. Define async fn send_conflict_email(to: &str, booking: &Booking, options: &[RescheduleOption]) -> Result<()>. Implement an HTML email template that includes booking details and presents 3 reschedule options as clickable buttons or links. Ensure proper error handling for API responses and template rendering.",
+            "status": "pending",
+            "testStrategy": "Unit tests using wiremock to mock the Resend API, verifying the POST request format, headers, and payload structure. Test email template rendering with sample booking data and options."
+          },
+          {
+            "id": 2,
+            "title": "Implement trait-based SMS provider with Twilio and mock",
+            "description": "Develop the SMS notification system using a trait abstraction for providers, including Twilio implementation and a mock fallback.",
+            "dependencies": [],
+            "details": "In core/src/notifications/sms.rs, define #[async_trait] trait SmsProvider { async fn send_sms(&self, to: &str, message: &str) -> Result<()> }. Implement TwilioProvider struct with fields account_sid, auth_token, from_number, and client: reqwest::Client; its send_sms method should POST to https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json using basic auth. Implement MockSmsProvider with send_sms logging via tracing::info!('📱 [MOCK SMS] To: {}, Message: {}', to, message). Create pub fn create_sms_provider() -> Box<dyn SmsProvider> that checks for TWILIO_* env vars to return TwilioProvider or MockSmsProvider. Store the provider in Axum State for dependency injection.",
+            "status": "pending",
+            "testStrategy": "Unit tests: TwilioProvider with wiremock to verify Twilio API call format and authentication. MockSmsProvider tests to check tracing log output. Factory function tests: with env vars returns TwilioProvider, without returns MockSmsProvider."
+          },
+          {
+            "id": 3,
+            "title": "Integrate notifications into weather conflict detection flow",
+            "description": "Modify the weather conflict detection logic to trigger email and SMS notifications when a conflict is detected.",
+            "dependencies": [
+              1,
+              2
+            ],
+            "details": "Update the conflict detection code (likely in core/src/weather/safety.rs or related modules) to call send_conflict_email() and sms_provider.send_sms() when a weather conflict is identified for a booking. Ensure the notifications include relevant booking details, conflict reasons, and reschedule options. Integrate with the existing Axum State to access the SMS provider and any necessary database or booking data.",
+            "status": "pending",
+            "testStrategy": "Integration test: Seed database with a booking that triggers a conflict, manually run the conflict detection logic, and verify that both the email API (via wiremock) and SMS provider (Twilio or mock) are called with correct parameters. Check that notifications are sent only on conflicts."
+          }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Implement background weather monitoring with tokio-cron-scheduler",
+        "description": "Set up hourly scheduled job using tokio-cron-scheduler to check flights in next 48hrs, detect conflicts, cancel bookings, generate AI reschedules, and send notifications.",
+        "details": "In server/src/scheduler.rs, use tokio_cron_scheduler::JobScheduler. Define async fn start_weather_monitor(db: SqlitePool, notifier: NotificationChannel, sms_provider: Arc<dyn SmsProvider>, weather_client: Arc<WeatherClient>, ai_cache: Arc<AiCache>) -> Result<()>. Create scheduler: let scheduler = JobScheduler::new().await?. Define cron job: let job = Job::new_async('0 0 * * * *', move |_uuid, _lock| { let db = db.clone(); ... Box::pin(async move { check_all_flights(&db, &notifier, ...).await }) })?.add(job).await?.start().await?. In check_all_flights(): query bookings with status=Scheduled AND scheduled_date BETWEEN now() AND now()+48hours. For each booking: fetch student, fetch current weather + 7-day forecast, load weather minimums, call is_flight_safe(). If unsafe: update booking status to Cancelled in DB, insert reschedule event, generate AI options (with cache), send email notification, send SMS, broadcast WebSocket notification. Log all actions with tracing::info!. Handle errors gracefully (log, continue to next booking, don't crash scheduler). Return ConflictSummary { total_checked: usize, conflicts_found: usize }.",
+        "testStrategy": "Unit tests: mock time (tokio::time::pause()), create test scheduler, fast-forward 1hr, verify job executes. Integration test: seed DB with 2 bookings (1 with bad weather forecast, 1 with good), run scheduler manually (trigger check_all_flights directly), verify: booking 1 cancelled in DB, reschedule event inserted, notifications sent (mocked), booking 2 unchanged. E2E: run full app, wait for cron tick (or manually trigger), verify full flow. Test concurrent safety: run scheduler while API requests in progress.",
+        "priority": "high",
+        "dependencies": [
+          3,
+          4,
+          5,
+          6,
+          9
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Set up the scheduler and cron job",
+            "description": "Initialize the tokio-cron-scheduler in server/src/scheduler.rs and define the async function start_weather_monitor with all required parameters. Create the JobScheduler instance and add an hourly cron job that calls check_all_flights asynchronously.",
+            "dependencies": [],
+            "details": "In server/src/scheduler.rs, define async fn start_weather_monitor(db: SqlitePool, notifier: NotificationChannel, sms_provider: Arc<dyn SmsProvider>, weather_client: Arc<WeatherClient>, ai_cache: Arc<AiCache>) -> Result<()>. Create scheduler: let scheduler = JobScheduler::new().await?. Define cron job: let job = Job::new_async('0 0 * * * *', move |_uuid, _lock| { let db = db.clone(); ... Box::pin(async move { check_all_flights(&db, &notifier, ...).await }) })?.add(job).await?.start().await?. Ensure proper error handling and logging.",
+            "status": "pending",
+            "testStrategy": null
+          },
+          {
+            "id": 2,
+            "title": "Implement the flight checking logic",
+            "description": "Develop the check_all_flights function to query bookings in the next 48 hours, check weather safety for each, and handle cancellations if unsafe, including updating DB status and inserting reschedule events.",
+            "dependencies": [
+              1
+            ],
+            "details": "In check_all_flights(): query bookings with status=Scheduled AND scheduled_date BETWEEN now() AND now()+48hours. For each booking: fetch student, fetch current weather + 7-day forecast, load weather minimums, call is_flight_safe(). If unsafe: update booking status to Cancelled in DB, insert reschedule event. Log all actions with tracing::info!. Handle errors gracefully (log, continue to next booking, don't crash scheduler). Return ConflictSummary { total_checked: usize, conflicts_found: usize }.",
+            "status": "pending",
+            "testStrategy": "Unit tests with mocked DB and weather client to verify querying, safety checks, and DB updates."
+          },
+          {
+            "id": 3,
+            "title": "Integrate notifications and AI rescheduling",
+            "description": "In the flight checking logic, integrate AI option generation using cache, and trigger email, SMS, and WebSocket notifications upon detecting unsafe weather conditions.",
+            "dependencies": [
+              2
+            ],
+            "details": "For each unsafe booking: generate AI options (with cache), send email notification via Resend, send SMS via SmsProvider, broadcast WebSocket notification via notifier. Ensure all notifications include booking details and reschedule options. Handle errors in notifications without failing the job. Integrate with existing notification traits and AI cache from dependencies.",
+            "status": "pending",
+            "testStrategy": "Integration tests with wiremock for email/SMS APIs, verify AI cache usage, and check WebSocket broadcasts."
+          },
+          {
+            "id": 4,
+            "title": "Test the scheduler implementation",
+            "description": "Create unit and integration tests for the scheduler to ensure it runs hourly, processes bookings correctly, and handles conflicts as expected.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Unit tests: mock time (tokio::time::pause()), create test scheduler, fast-forward 1hr, verify job executes. Integration test: seed DB with 2 bookings (1 with bad weather forecast, 1 with good), run scheduler manually (trigger check_all_flights directly), verify: booking 1 cancelled in DB, reschedule event inserted, notifications sent, AI options generated. Test error handling: simulate DB failures, ensure scheduler continues.",
+            "status": "pending",
+            "testStrategy": "Use tokio::time::pause() for time mocking, wiremock for external APIs, and assert on DB state and notification calls."
+          }
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Conduct comprehensive testing with coverage reporting",
+        "description": "Run unit, integration, property-based, and end-to-end tests covering all PRD success criteria, with 80%+ code coverage for core logic.",
+        "details": "Use cargo test for all Rust tests. Unit tests: core/src/**/tests.rs modules for safety logic, AI prompt building, weather parsing, notification formatting. Property-based tests with proptest: generate random WeatherData/TrainingLevel combos, verify safety logic consistency. Integration tests: tests/ directory with wiremock for external APIs (OpenWeatherMap, OpenAI, Resend, Twilio), sqlx::test for DB. WebSocket tests: spawn test server, connect with tokio-tungstenite client, verify broadcast. E2E tests with Playwright (elm/e2e/): test_create_booking_and_conflict.spec.ts: navigate to dashboard, fill booking form, submit, mock weather API to return bad weather, trigger manual check, verify real-time alert appears, verify 3 reschedule options displayed, click option, verify booking updated. Run cargo-tarpaulin for coverage: cargo tarpaulin --out Html --output-dir coverage --exclude-files 'server/src/main.rs' 'tests/*' --target-dir target/tarpaulin (exclude main and test files). Target: 80%+ coverage for core/ crate. Test concurrent DB access: spawn 10 tokio tasks simultaneously inserting/querying, verify no corruption (use PRAGMA journal_mode=WAL in SQLite).",
+        "testStrategy": "All PRD tests pass: weather API integration (mocked JSON parsing), safety logic (property-based with proptest), AI output (structured JSON with >=3 options), notifications (email/SMS/WebSocket mocks), dashboard UI (Playwright E2E), database (audit trail + concurrent writes), scheduler (cron execution + conflict handling), WebSocket (reconnection + backpressure). Generate coverage report, ensure core safety logic >90%, overall >80%. CI: run tests on every PR.",
+        "priority": "high",
+        "dependencies": [
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Implement unit and property-based tests",
+            "description": "Run unit tests for core components like safety logic, AI prompt building, weather parsing, and notification formatting, along with property-based tests to verify consistency.",
+            "dependencies": [],
+            "details": "Use cargo test to execute unit tests located in core/src/**/tests.rs modules. For property-based tests, utilize proptest to generate random combinations of WeatherData and TrainingLevel, ensuring safety logic behaves consistently across scenarios.",
+            "status": "pending",
+            "testStrategy": "Verify that all unit tests pass and property-based tests confirm safety logic consistency without failures."
+          },
+          {
+            "id": 2,
+            "title": "Implement integration tests with mocks",
+            "description": "Run integration tests for external API interactions and database operations using mocks.",
+            "dependencies": [
+              1
+            ],
+            "details": "Place integration tests in the tests/ directory. Use wiremock to mock external APIs such as OpenWeatherMap, OpenAI, Resend, and Twilio. Employ sqlx::test for database-related tests to ensure proper interactions.",
+            "status": "pending",
+            "testStrategy": "Mock API responses and verify that the application correctly handles requests, parses data, and interacts with the database without real external calls."
+          },
+          {
+            "id": 3,
+            "title": "Implement WebSocket and end-to-end tests",
+            "description": "Test WebSocket broadcasting functionality and perform end-to-end tests covering the full user workflow.",
+            "dependencies": [
+              2
+            ],
+            "details": "For WebSocket tests, spawn a test server and connect using tokio-tungstenite to verify broadcast messages. For E2E tests, use Playwright in elm/e2e/ with test_create_booking_and_conflict.spec.ts to simulate user actions like creating bookings, triggering weather checks, and verifying real-time alerts and rescheduling.",
+            "status": "pending",
+            "testStrategy": "Ensure WebSocket connections broadcast correctly and E2E tests pass all steps, including UI interactions, API responses, and real-time updates."
+          },
+          {
+            "id": 4,
+            "title": "Generate code coverage report",
+            "description": "Run coverage analysis to ensure at least 80% code coverage for the core logic.",
+            "dependencies": [
+              1,
+              2,
+              3
+            ],
+            "details": "Execute cargo tarpaulin with the command: cargo tarpaulin --out Html --output-dir coverage --exclude-files 'server/src/main.rs' 'tests/*' --target-dir target/tarpaulin. Focus on achieving 80%+ coverage specifically for the core/ crate.",
+            "status": "pending",
+            "testStrategy": "Review the generated HTML report to confirm coverage metrics exceed 80% for core logic, excluding main and test files."
+          },
+          {
+            "id": 5,
+            "title": "Set up CI for automated testing",
+            "description": "Configure continuous integration to automatically run all tests and coverage reporting.",
+            "dependencies": [
+              4
+            ],
+            "details": "Set up a CI pipeline (e.g., using GitHub Actions) to execute cargo test for unit, property-based, and integration tests, run WebSocket and E2E tests, and generate coverage reports on each push or pull request.",
+            "status": "pending",
+            "testStrategy": "Verify that the CI pipeline passes all tests, achieves required coverage, and fails builds if thresholds are not met."
+          }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Deploy to Fly.io with persistent SQLite volume and monitoring",
+        "description": "Create Fly.io configuration, build Docker image with Rust binary and Elm static assets, deploy with persistent volume for SQLite, configure secrets, and verify production deployment.",
+        "details": "Create fly.toml: app = 'weather-event-app', primary_region = 'lax', [build] builder = 'paketobuildpacks/builder:base', [mounts] source = 'weather_app_data' destination = '/data', [[services]] internal_port = 3000 protocol = 'tcp', [[services.ports]] port = 80/443 handlers = ['http'/'tls', 'http'], [[services.http_checks]] interval = '30s' timeout = '5s' path = '/health'. Create Dockerfile (multi-stage): Stage 1: FROM node:20 AS elm-builder, copy elm/, run npm install && npm run build (outputs to elm/dist/). Stage 2: FROM rust:1.75 AS rust-builder, copy core/ and server/, copy elm/dist/ to server/dist/, cargo build --release. Stage 3: FROM debian:bookworm-slim, install ca-certificates and libsqlite3-0, copy binary and dist/ from rust-builder, EXPOSE 3000, CMD ['/app/server']. Configure server to use DATABASE_URL from env (sqlite:///data/weather_app.db in production). Run fly launch (creates app), fly volumes create weather_app_data --size 1 --region lax. Set secrets: fly secrets set OPENAI_API_KEY=sk-proj-... WEATHER_API_KEY=... RESEND_API_KEY=... RUST_LOG=info,weather_event=debug FROM_EMAIL=alerts@flightschedulepro.com. Deploy: fly deploy. Test: curl https://weather-event-app.fly.dev/health (expect {status: ok}), open https://weather-event-app.fly.dev in browser (verify Elm UI loads), open dev tools (verify WebSocket connects to wss://weather-event-app.fly.dev/ws). Create test booking via UI, verify saves to DB. Check fly logs to verify scheduler runs hourly. Measure cold start: fly apps restart, time first request (<30s target).",
+        "testStrategy": "Verify fly deploy succeeds with exit code 0. Health check returns 200 OK. Access deployed URL, verify Elm UI loads, no console errors, WebSocket status = connected. Create test booking, verify API responds 201 and booking persists (restart app, check still exists → volume persistence verified). Trigger manual weather check with bad mock data, verify email sent, WebSocket notification received in browser. Check fly logs: verify scheduler logs 'Running hourly weather check', verify no crashes. Test DNS: nslookup weather-event-app.fly.dev resolves. Test HTTPS: verify certificate valid. Monitor: fly dashboard for CPU/memory usage <50% under normal load. Test scaling: fly scale count 2, verify both instances serve traffic (optional).",
+        "priority": "high",
+        "dependencies": [
+          11
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create Docker image and Fly.io configuration",
+            "description": "Build a multi-stage Docker image for the Rust binary and Elm static assets, and set up the Fly.io configuration file (fly.toml) with app settings, build options, mounts, and services.",
+            "dependencies": [],
+            "details": "Create a Dockerfile with three stages: Stage 1 uses node:20 to build Elm assets (copy elm/, run npm install && npm run build, output to elm/dist/). Stage 2 uses rust:1.75 to build the Rust server (copy core/ and server/, copy elm/dist/ to server/dist/, run cargo build --release). Stage 3 uses debian:bookworm-slim, installs ca-certificates and libsqlite3-0, copies the binary and dist/ from Stage 2, exposes port 3000, and sets CMD ['/app/server']. Create fly.toml with app='weather-event-app', primary_region='lax', [build] builder='paketobuildpacks/builder:base', [mounts] source='weather_app_data' destination='/data', [[services]] internal_port=3000 protocol='tcp', [[services.ports]] port=80/443 handlers=['http'/'tls', 'http'], [[services.http_checks]] interval='30s' timeout='5s' path='/health'. Configure the server to use DATABASE_URL from environment (sqlite:///data/weather_app.db in production).",
+            "status": "pending",
+            "testStrategy": "Verify Docker build succeeds with no errors, and fly.toml validates correctly using fly config validate."
+          },
+          {
+            "id": 2,
+            "title": "Set up persistent volumes and configure secrets",
+            "description": "Create a persistent volume for SQLite data on Fly.io and set up necessary environment secrets for the application.",
+            "dependencies": [],
+            "details": "Run fly launch to create the Fly.io app. Then, create the volume with fly volumes create weather_app_data --size 1 --region lax. Set secrets using fly secrets set for OPENAI_API_KEY, WEATHER_API_KEY, RESEND_API_KEY, RUST_LOG=info,weather_event=debug, and FROM_EMAIL=alerts@flightschedulepro.com. Ensure the server code reads these secrets from the environment variables.",
+            "status": "pending",
+            "testStrategy": "Check that fly volumes list shows the created volume, and fly secrets list confirms all secrets are set without exposing values."
+          },
+          {
+            "id": 3,
+            "title": "Deploy to production and verify deployment",
+            "description": "Deploy the application to Fly.io and perform verification tests to ensure the production setup works correctly, including health checks, UI loading, WebSocket connections, and data persistence.",
+            "dependencies": [],
+            "details": "Run fly deploy to deploy the application. After deployment, test the health endpoint with curl https://weather-event-app.fly.dev/health (expect {status: ok}). Open https://weather-event-app.fly.dev in a browser to verify the Elm UI loads, check browser dev tools for WebSocket connection to wss://weather-event-app.fly.dev/ws. Create a test booking via the UI and verify it saves to the database. Restart the app with fly apps restart and check that the booking persists, confirming volume persistence. Check fly logs to ensure the scheduler runs hourly. Measure cold start time for the first request after restart, targeting under 30 seconds.",
+            "status": "pending",
+            "testStrategy": "Verify fly deploy exits with code 0. Health check returns 200 OK. UI loads without console errors, WebSocket status is connected. Test booking creation and persistence after app restart. Confirm scheduler logs show hourly runs. Measure and log cold start time."
+          }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Create demo video and comprehensive documentation",
+        "description": "Record 5-10 minute demo video showing full workflow from booking to conflict to reschedule, and write detailed README with setup, deployment, and architecture documentation.",
+        "details": "Demo video must show (screen recording with voiceover): 1) Open https://weather-event-app.fly.dev in browser, 2) Navigate to dashboard, show clean UI, 3) Click 'Create Booking', fill form (student: John Doe - Student Pilot, date: tomorrow 2pm, location: KTOA), submit, 4) Show booking appears in list with status 'Scheduled', 5) Simulate weather conflict: either wait for hourly scheduler or trigger manual check via hidden admin endpoint, 6) Show real-time WebSocket notification appears in UI without refresh (red alert banner: 'Flight cancelled due to weather'), 7) Show booking status changes to 'Cancelled' in real-time, 8) Show AI-generated reschedule options (3 cards with date/time, weather score, reason like 'Clear skies, 5kt winds, instructor available'), 9) Show email notification in inbox (screenshot), 10) Show terminal logs of mock SMS sent, 11) Click reschedule option, verify booking updates to new date with status 'Rescheduled', 12) Show mobile responsive design (resize browser to phone width). README.md sections: ## Overview (elevator pitch), ## Architecture (diagram showing Elm ↔ Axum ↔ SQLite ↔ APIs), ## Tech Stack (list with versions), ## Prerequisites (Rust 1.75+, Node 20+, Elm 0.19, Fly.io CLI), ## Local Development (clone repo, copy .env.template to .env, add API keys, npm install && npm run dev in elm/, cargo run in server/), ## Database Setup (sqlx migrate run, seed data script), ## Environment Variables (document all from .env.template), ## Testing (cargo test, npm run test:e2e), ## Deployment (fly deploy steps), ## API Documentation (list endpoints with curl examples), ## Cost Analysis (breakdown per service), ## Future: Tauri Desktop Wrapper (mention stretch goal). Add architecture diagrams (mermaid in markdown).",
+        "testStrategy": "Demo video review: verify all 12 steps shown clearly, audio quality good, <10 minutes. Peer review video for clarity. README test: fresh clone, follow exact steps, verify app runs locally (npm run dev + cargo run work). Test all curl examples in API docs section. Verify all links in README work. Check typos with grammar checker. Get feedback from non-technical user on README clarity.",
+        "priority": "medium",
+        "dependencies": [
+          12
+        ],
+        "status": "pending",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Record Demo Video Showing Full Workflow",
+            "description": "Record a 5-10 minute screen recording with voiceover demonstrating the complete workflow from booking creation to weather conflict detection, real-time notifications, reschedule options, and mobile responsiveness.",
+            "dependencies": [],
+            "details": "Use screen recording software to capture the browser at https://weather-event-app.fly.dev. Follow the exact steps: open site, navigate dashboard, create booking (John Doe, tomorrow 2pm, KTOA), show scheduled status, simulate conflict via admin endpoint, demonstrate WebSocket notifications, status changes, AI reschedule options, email screenshot, SMS logs, reschedule action, and mobile resize. Ensure voiceover explains each step clearly, total under 10 minutes.",
+            "status": "pending",
+            "testStrategy": "Demo video review: verify all 12 steps shown clearly, audio quality good, <10 minutes. Peer review video for clarity."
+          },
+          {
+            "id": 2,
+            "title": "Write and Test Comprehensive README Documentation",
+            "description": "Create a detailed README.md file with sections on overview, architecture, tech stack, prerequisites, local development, database setup, environment variables, testing, deployment, API documentation, cost analysis, and future plans including diagrams.",
+            "dependencies": [],
+            "details": "Write README.md with specified sections: Overview (elevator pitch), Architecture (Mermaid diagram: Elm ↔ Axum ↔ SQLite ↔ APIs), Tech Stack (with versions), Prerequisites (Rust 1.75+, etc.), Local Development (clone, .env, npm install, cargo run), Database Setup (migrations, seed), Environment Variables (from .env.template), Testing (cargo test, e2e), Deployment (fly deploy), API Docs (endpoints with curl), Cost Analysis, Future (Tauri). Include Mermaid diagrams in markdown.",
+            "status": "pending",
+            "testStrategy": "README test: fresh clone, follow exact steps, verify app runs locally (npm run dev + cargo run work). Test all curl examples in API docs section. Verify all links in README work."
+          }
+        ]
+      }
+    ],
+    "metadata": {
+      "created": "2025-11-07T17:43:58.357Z",
+      "updated": "2025-11-07T19:00:00.000Z",
+      "description": "Tasks for Rust + Elm + Axum + Fly.io Weather Cancellation System (Web-First with Tauri Compatibility)"
+    }
+  }
+}
