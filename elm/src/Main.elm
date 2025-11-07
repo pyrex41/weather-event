@@ -436,9 +436,14 @@ viewBookingCard booking =
             [ h4 [] [ text booking.departureLocation.name ]
             , span [ class "status-badge" ] [ text booking.status ]
             ]
-        , p [] [ text ("Date: " ++ booking.scheduledDate) ]
+        , p [] [ text ("Date: " ++ formatDateWithTimezone booking.scheduledDate) ]
         , p [] [ text ("Student ID: " ++ booking.studentId) ]
         ]
+
+
+formatDateWithTimezone : String -> String
+formatDateWithTimezone dateStr =
+    dateStr ++ " UTC"
 
 
 viewStudents : Model -> Html Msg
@@ -560,7 +565,7 @@ viewAlertCard alert =
                 text ""
         , case alert.originalDate of
             Just date ->
-                p [] [ text ("Original Date: " ++ date) ]
+                p [] [ text ("Original Date: " ++ formatDateWithTimezone date) ]
 
             Nothing ->
                 text ""

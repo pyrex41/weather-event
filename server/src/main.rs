@@ -40,16 +40,30 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("Starting Weather Event Server...");
 
     // Database connection
-    let database_url = std::env::var("DATABASE_URL").unwrap_or_else(|_| "sqlite:weather_app.db".to_string());
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| {
+            tracing::warn!("DATABASE_URL not set, using default: sqlite:weather_app.db");
+            "sqlite:weather_app.db".to_string()
+        });
+
     tracing::info!("Connecting to database: {}", database_url);
 
-    let db = SqlitePool::connect(&database_url).await?;
+    let db = SqlitePool::connect(&database_url)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to connect to database '{}': {}", database_url, e);
+            e
+        })?;
 
     // Run migrations
     tracing::info!("Running database migrations...");
     sqlx::migrate!("../migrations")
         .run(&db)
-        .await?;
+        .await
+        .map_err(|e| {
+            tracing::error!("Database migration failed: {}", e);
+            e
+        })?;
 
     tracing::info!("Database migrations completed");
 
@@ -60,6 +74,26 @@ async fn main() -> anyhow::Result<()> {
     let state = AppState {
         db: db.clone(),
         notification_tx: notification_tx.clone(),
+    };
+
+    // Configure CORS
+    let cors = if let Ok(origins) = std::env::var("ALLOWED_ORIGINS") {
+        // Production: use specified origins
+        let origins: Vec<_> = origins
+            .split(',')
+            .filter_map(|s| s.trim().parse().ok())
+            .collect();
+
+        tracing::info!("CORS configured with allowed origins: {:?}", origins);
+
+        CorsLayer::new()
+            .allow_origin(origins)
+            .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+            .allow_headers([axum::http::header::CONTENT_TYPE])
+    } else {
+        // Development: permissive CORS
+        tracing::warn!("CORS configured in permissive mode (ALLOWED_ORIGINS not set)");
+        CorsLayer::permissive()
     };
 
     // Build router
@@ -77,7 +111,7 @@ async fn main() -> anyhow::Result<()> {
         // Static files (for Elm frontend)
         .nest_service("/", ServeDir::new("dist").fallback(routes::serve_spa()))
         // CORS
-        .layer(CorsLayer::permissive())
+        .layer(cors)
         // State
         .with_state(state);
 

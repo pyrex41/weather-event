@@ -1,6 +1,6 @@
 use crate::AppState;
 use axum::{
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::StatusCode,
     Json,
 };
@@ -8,6 +8,22 @@ use chrono::{DateTime, Utc};
 use core::models::{Booking, BookingStatus, Location};
 use serde::{Deserialize, Serialize};
 use sqlx::SqlitePool;
+
+#[derive(Debug, Deserialize)]
+pub struct PaginationParams {
+    #[serde(default = "default_page")]
+    pub page: i64,
+    #[serde(default = "default_limit")]
+    pub limit: i64,
+}
+
+fn default_page() -> i64 {
+    1
+}
+
+fn default_limit() -> i64 {
+    50
+}
 
 #[derive(Debug, Deserialize)]
 pub struct CreateBookingRequest {
@@ -38,11 +54,22 @@ impl From<Booking> for BookingResponse {
 }
 
 pub async fn list_bookings(
+    Query(params): Query<PaginationParams>,
     State(state): State<AppState>,
 ) -> Result<Json<Vec<BookingResponse>>, StatusCode> {
+    // Validate and sanitize pagination parameters
+    let page = params.page.max(1);
+    let limit = params.limit.clamp(1, 100); // Max 100 items per page
+    let offset = (page - 1) * limit;
+
     let bookings = sqlx::query_as::<_, Booking>(
-        "SELECT id, student_id, scheduled_date, departure_location, status FROM bookings ORDER BY scheduled_date DESC"
+        "SELECT id, student_id, scheduled_date, departure_location, status
+         FROM bookings
+         ORDER BY scheduled_date DESC
+         LIMIT ? OFFSET ?"
     )
+    .bind(limit)
+    .bind(offset)
     .fetch_all(&state.db)
     .await
     .map_err(|e| {

@@ -303,7 +303,7 @@ Return JSON with this exact structure:
             }
         }
 
-        // If still not enough options, add some with warnings
+        // If still not enough options, add marginal weather days
         if options.len() < 3 {
             for weather in weather_forecast.iter().skip(options.len()).take(3 - options.len()) {
                 let score = calculate_weather_score(&student.training_level, weather);
@@ -314,6 +314,18 @@ Return JSON with this exact structure:
                     instructor_available: true,
                 });
             }
+        }
+
+        // If STILL not enough options (forecast too short), add placeholder options
+        while options.len() < 3 {
+            let days_ahead = options.len() + 1;
+            let placeholder_date = booking.scheduled_date + chrono::Duration::days(days_ahead as i64);
+            options.push(RescheduleOption {
+                date_time: placeholder_date,
+                reason: "Please contact your instructor to schedule - limited weather data available".to_string(),
+                weather_score: 5.0,
+                instructor_available: false,
+            });
         }
 
         Ok(options)

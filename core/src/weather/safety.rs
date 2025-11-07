@@ -3,6 +3,20 @@ use crate::weather::WeatherData;
 use std::collections::HashMap;
 use std::sync::Arc;
 
+// Weather scoring constants
+const PERFECT_SCORE: f32 = 10.0;
+const THUNDERSTORM_PENALTY: f32 = 5.0;
+const ICING_PENALTY: f32 = 3.0;
+const IDEAL_VISIBILITY_MI: f32 = 10.0;
+const VISIBILITY_PENALTY_FACTOR: f32 = 2.0;
+const CALM_WIND_KT: f32 = 5.0;
+const MAX_WIND_PENALTY_KT: f32 = 15.0;
+const WIND_PENALTY_FACTOR: f32 = 2.0;
+const IDEAL_CEILING_FT: f32 = 5000.0;
+const CEILING_PENALTY_FACTOR: f32 = 2.0;
+const STUDENT_HIGH_WIND_THRESHOLD_KT: f32 = 10.0;
+const STUDENT_HIGH_WIND_PENALTY: f32 = 2.0;
+
 /// Check if flight is safe for the given training level and weather conditions
 ///
 /// Returns (is_safe, reason if unsafe)
@@ -90,43 +104,43 @@ pub fn is_flight_safe(
 ///
 /// 10 = perfect conditions, 0 = terrible conditions
 pub fn calculate_weather_score(training_level: &TrainingLevel, weather: &WeatherData) -> f32 {
-    let mut score = 10.0;
+    let mut score = PERFECT_SCORE;
 
     // Deduct for thunderstorms
     if weather.has_thunderstorms {
-        score -= 5.0;
+        score -= THUNDERSTORM_PENALTY;
     }
 
     // Deduct for icing
     if weather.has_icing {
-        score -= 3.0;
+        score -= ICING_PENALTY;
     }
 
     // Deduct for poor visibility
-    if weather.visibility_miles < 10.0 {
-        score -= (10.0 - weather.visibility_miles) / 10.0 * 2.0;
+    if weather.visibility_miles < IDEAL_VISIBILITY_MI as f64 {
+        score -= ((IDEAL_VISIBILITY_MI - weather.visibility_miles as f32) / IDEAL_VISIBILITY_MI) * VISIBILITY_PENALTY_FACTOR;
     }
 
     // Deduct for high winds
-    if weather.wind_speed_knots > 5.0 {
-        score -= (weather.wind_speed_knots - 5.0).min(15.0) / 15.0 * 2.0;
+    if weather.wind_speed_knots > CALM_WIND_KT as f64 {
+        score -= ((weather.wind_speed_knots as f32 - CALM_WIND_KT).min(MAX_WIND_PENALTY_KT) / MAX_WIND_PENALTY_KT) * WIND_PENALTY_FACTOR;
     }
 
     // Deduct for low ceiling
     if let Some(ceiling) = weather.ceiling_ft {
-        if ceiling < 5000.0 {
-            score -= (5000.0 - ceiling) / 5000.0 * 2.0;
+        if ceiling < IDEAL_CEILING_FT as f64 {
+            score -= ((IDEAL_CEILING_FT - ceiling as f32) / IDEAL_CEILING_FT) * CEILING_PENALTY_FACTOR;
         }
     }
 
     // Student pilots need better conditions
     if matches!(training_level, TrainingLevel::StudentPilot) {
-        if weather.wind_speed_knots > 10.0 {
-            score -= 2.0;
+        if weather.wind_speed_knots > STUDENT_HIGH_WIND_THRESHOLD_KT as f64 {
+            score -= STUDENT_HIGH_WIND_PENALTY;
         }
     }
 
-    score.max(0.0).min(10.0)
+    score.max(0.0).min(PERFECT_SCORE)
 }
 
 /// Default weather minimums for each training level
