@@ -11,7 +11,7 @@ let ws = null;
 let reconnectTimer = null;
 let reconnectAttempts = 0;
 const MAX_RECONNECT_ATTEMPTS = 5;
-const RECONNECT_DELAY = 3000;
+const BASE_RECONNECT_DELAY = 1000; // Start with 1 second
 
 function connectWebSocket() {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -46,11 +46,12 @@ function connectWebSocket() {
       app.ports.websocketDisconnected.send(null);
     }
 
-    // Attempt to reconnect
+    // Attempt to reconnect with exponential backoff
     if (reconnectAttempts < MAX_RECONNECT_ATTEMPTS) {
+      const delay = BASE_RECONNECT_DELAY * Math.pow(2, reconnectAttempts);
       reconnectAttempts++;
-      console.log(`Reconnecting in ${RECONNECT_DELAY}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
-      reconnectTimer = setTimeout(connectWebSocket, RECONNECT_DELAY);
+      console.log(`Reconnecting in ${delay}ms (attempt ${reconnectAttempts}/${MAX_RECONNECT_ATTEMPTS})`);
+      reconnectTimer = setTimeout(connectWebSocket, delay);
     } else {
       console.error('Max reconnection attempts reached');
     }
