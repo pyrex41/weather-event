@@ -202,6 +202,10 @@ ws://localhost:3000/ws
 
 ## Testing
 
+### Unit Tests
+
+Run unit tests for the core library:
+
 ```bash
 # Run all tests
 cargo test
@@ -209,9 +213,89 @@ cargo test
 # Run with output
 cargo test -- --nocapture
 
-# Run specific test
+# Run specific module tests
 cargo test weather::tests::test_unit_conversions
+cargo test weather::safety::tests
+cargo test ai::tests
 ```
+
+### Integration Tests
+
+The project includes comprehensive integration tests:
+
+```bash
+# Run all integration tests
+cargo test --test '*'
+
+# Run weather integration tests
+cargo test --test weather_integration_test
+
+# Run database integration tests
+cargo test --test database_integration_test
+
+# Run specific integration test
+cargo test --test weather_integration_test test_student_pilot_weather_safety_integration
+```
+
+**Integration Test Coverage:**
+- ✅ Weather safety logic for all training levels
+- ✅ Training level progression (Student → Private → Instrument)
+- ✅ Weather scoring consistency
+- ✅ Edge cases (at minimums, below minimums, unlimited ceiling)
+- ✅ Multiple violation handling
+- ✅ Database CRUD operations (students, bookings)
+- ✅ Foreign key constraints and cascade deletes
+- ✅ Concurrent write safety (10 concurrent operations)
+- ✅ JSON serialization for complex types
+- ✅ Status transitions for bookings
+
+### Frontend Testing
+
+```bash
+cd elm
+
+# Install dependencies (if not already done)
+npm install
+
+# Run Elm in dev mode with hot reload
+npm run dev
+
+# Build for production
+npm run build
+
+# The built files will be in elm/dist/
+```
+
+### Manual Testing
+
+1. Start the backend server:
+   ```bash
+   cargo run --release
+   ```
+
+2. In another terminal, start the Elm dev server:
+   ```bash
+   cd elm && npm run dev
+   ```
+
+3. Open http://localhost:5173 in your browser
+
+4. Test the WebSocket connection:
+   - Check the status indicator in the header (should show "● Live")
+   - Create a booking and watch for real-time updates
+   - Open browser console to see WebSocket messages
+
+5. Test API endpoints:
+   ```bash
+   # Health check
+   curl http://localhost:3000/health
+
+   # List bookings
+   curl http://localhost:3000/api/bookings
+
+   # List students
+   curl http://localhost:3000/api/students
+   ```
 
 ## Project Structure
 
@@ -235,10 +319,22 @@ weather-event/
 │   │   ├── routes/         # API route handlers
 │   │   └── scheduler.rs    # Background weather monitor
 │   └── Cargo.toml
-├── elm/                     # Elm frontend (to be built)
+├── elm/                     # Elm frontend SPA
 │   ├── src/
+│   │   ├── Main.elm        # Main application entry
+│   │   ├── Types.elm       # Type definitions
+│   │   ├── Api.elm         # HTTP API client
+│   │   ├── WebSocket.elm   # WebSocket ports
+│   │   ├── main.js         # JS entry with WebSocket
+│   │   └── style.css       # Styles
+│   ├── elm.json
 │   ├── package.json
-│   └── vite.config.js
+│   ├── vite.config.js
+│   └── index.html
+├── tests/                   # Integration tests
+│   ├── weather_integration_test.rs
+│   ├── database_integration_test.rs
+│   └── Cargo.toml
 ├── migrations/              # SQL database migrations
 │   └── 001_init.sql
 ├── .env.template            # Environment variables template
@@ -280,11 +376,13 @@ All levels prohibit: Thunderstorms, Icing conditions
 - [x] Safety checking logic
 - [x] WebSocket notifications
 - [x] Scheduler for automated checks
-- [ ] Elm frontend UI
-- [ ] AI reschedule integration
-- [ ] Email/SMS notifications
-- [ ] Unit and integration tests
-- [ ] Deployment configuration
+- [x] Elm frontend UI with real-time updates
+- [x] AI reschedule integration with caching
+- [x] Email/SMS notification infrastructure
+- [x] Unit and integration tests (15+ test cases)
+- [ ] Frontend npm package installation fixes
+- [ ] E2E tests with Playwright
+- [ ] Deployment configuration (Fly.io)
 - [ ] Demo video
 
 ## Deployment
