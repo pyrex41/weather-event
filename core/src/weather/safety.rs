@@ -1,7 +1,6 @@
 use crate::models::{TrainingLevel, WeatherMinimum};
 use crate::weather::WeatherData;
 use std::collections::HashMap;
-use std::sync::Arc;
 
 // Weather scoring constants
 const PERFECT_SCORE: f32 = 10.0;
@@ -356,5 +355,168 @@ mod tests {
         let weather = create_test_weather(2.9, 20.1, Some(999.0), false, false);
         let (is_safe, _) = is_flight_safe(&TrainingLevel::PrivatePilot, &weather, &minimums);
         assert!(!is_safe);
+    }
+
+    // Property-based tests with proptest
+    use proptest::prelude::*;
+
+    proptest! {
+        #[test]
+        fn prop_student_pilot_stricter_than_private(
+            visibility in 0.0f64..15.0,
+            wind_speed in 0.0f64..40.0,
+            ceiling in 0.0f64..10000.0,
+        ) {
+            let minimums_map = default_weather_minimums();
+            let student_mins = minimums_map.get(&TrainingLevel::StudentPilot).unwrap();
+            let private_mins = minimums_map.get(&TrainingLevel::PrivatePilot).unwrap();
+
+            let weather = create_test_weather(
+                visibility,
+                wind_speed,
+                Some(ceiling),
+                false, // no thunderstorms
+                false, // no icing
+            );
+
+            let (student_safe, _) = is_flight_safe(&TrainingLevel::StudentPilot, &weather, student_mins);
+            let (private_safe, _) = is_flight_safe(&TrainingLevel::PrivatePilot, &weather, private_mins);
+
+            // Property: If it's safe for students, it must be safe for private pilots
+            // (Student pilot minimums are stricter)
+            if student_safe {
+                prop_assert!(private_safe,
+                    "Weather safe for student (vis: {:.1}, wind: {:.1}, ceiling: {:.1}) but not for private pilot",
+                    visibility, wind_speed, ceiling
+                );
+            }
+        }
+
+        #[test]
+        fn prop_private_pilot_stricter_than_instrument(
+            visibility in 0.0f64..15.0,
+            wind_speed in 0.0f64..40.0,
+            ceiling in 0.0f64..10000.0,
+        ) {
+            let minimums_map = default_weather_minimums();
+            let private_mins = minimums_map.get(&TrainingLevel::PrivatePilot).unwrap();
+            let instrument_mins = minimums_map.get(&TrainingLevel::InstrumentRated).unwrap();
+
+            let weather = create_test_weather(
+                visibility,
+                wind_speed,
+                Some(ceiling),
+                false,
+                false,
+            );
+
+            let (private_safe, _) = is_flight_safe(&TrainingLevel::PrivatePilot, &weather, private_mins);
+            let (instrument_safe, _) = is_flight_safe(&TrainingLevel::InstrumentRated, &weather, instrument_mins);
+
+            // If it's safe for private pilots, it should be safe for instrument-rated pilots
+            if private_safe {
+                prop_assert!(instrument_safe,
+                    "Weather safe for private (vis: {:.1}, wind: {:.1}, ceiling: {:.1}) but not for instrument",
+                    visibility, wind_speed, ceiling
+                );
+            }
+        }
+
+        #[test]
+        fn prop_weather_score_bounded(
+            visibility in 0.0f64..15.0,
+            wind_speed in 0.0f64..50.0,
+            ceiling in 0.0f64..15000.0,
+            has_thunderstorms: bool,
+            has_icing: bool,
+        ) {
+            let weather = create_test_weather(
+                visibility,
+                wind_speed,
+                Some(ceiling),
+                has_thunderstorms,
+                has_icing,
+            );
+
+            for training_level in [TrainingLevel::StudentPilot, TrainingLevel::PrivatePilot, TrainingLevel::InstrumentRated] {
+                let score = calculate_weather_score(&training_level, &weather);
+                prop_assert!(score >= 0.0 && score <= PERFECT_SCORE,
+                    "Score {} out of bounds [0, {}] for {:?}",
+                    score, PERFECT_SCORE, training_level
+                );
+            }
+        }
+
+        #[test]
+        fn prop_perfect_conditions_high_score(
+            visibility in 10.0f64..20.0,
+            wind_speed in 0.0f64..5.0,
+            ceiling in 5000.0f64..15000.0,
+        ) {
+            let weather = create_test_weather(
+                visibility,
+                wind_speed,
+                Some(ceiling),
+                false,
+                false,
+            );
+
+            for training_level in [TrainingLevel::StudentPilot, TrainingLevel::PrivatePilot, TrainingLevel::InstrumentRated] {
+                let score = calculate_weather_score(&training_level, &weather);
+                prop_assert!(score >= 8.0,
+                    "Perfect conditions should score >= 8.0, got {} for {:?}",
+                    score, training_level
+                );
+            }
+        }
+
+        #[test]
+        fn prop_thunderstorms_always_unsafe(
+            visibility in 0.0f64..15.0,
+            wind_speed in 0.0f64..40.0,
+            ceiling in 0.0f64..10000.0,
+        ) {
+            let minimums_map = default_weather_minimums();
+
+            let weather = create_test_weather(
+                visibility,
+                wind_speed,
+                Some(ceiling),
+                true, // thunderstorms present
+                false,
+            );
+
+            for training_level in [TrainingLevel::StudentPilot, TrainingLevel::PrivatePilot, TrainingLevel::InstrumentRated] {
+                let mins = minimums_map.get(&training_level).unwrap();
+                let (is_safe, reason) = is_flight_safe(&training_level, &weather, mins);
+
+                prop_assert!(!is_safe, "Thunderstorms should always be unsafe for {:?}", training_level);
+                prop_assert!(reason.is_some(), "Unsafe weather should have a reason");
+                prop_assert!(reason.unwrap().contains("Thunderstorm"), "Reason should mention thunderstorms");
+            }
+        }
+
+        #[test]
+        fn prop_visibility_zero_always_unsafe(
+            wind_speed in 0.0f64..40.0,
+            ceiling in 0.0f64..10000.0,
+        ) {
+            let minimums_map = default_weather_minimums();
+
+            let weather = create_test_weather(
+                0.0, // zero visibility
+                wind_speed,
+                Some(ceiling),
+                false,
+                false,
+            );
+
+            for training_level in [TrainingLevel::StudentPilot, TrainingLevel::PrivatePilot, TrainingLevel::InstrumentRated] {
+                let mins = minimums_map.get(&training_level).unwrap();
+                let (is_safe, _) = is_flight_safe(&training_level, &weather, mins);
+
+                prop_assert!(!is_safe, "Zero visibility should always be unsafe for {:?}", training_level);
+            }
+        }
     }
 }

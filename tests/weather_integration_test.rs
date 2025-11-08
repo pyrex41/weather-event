@@ -1,5 +1,5 @@
-use core::weather::{calculate_weather_score, default_weather_minimums, is_flight_safe, WeatherData};
-use core::models::TrainingLevel;
+use weather_core::weather::{calculate_weather_score, default_weather_minimums, is_flight_safe, WeatherData};
+use weather_core::models::TrainingLevel;
 use chrono::Utc;
 
 #[test]

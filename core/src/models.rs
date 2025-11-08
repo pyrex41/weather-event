@@ -102,6 +102,19 @@ impl TrainingLevel {
     }
 }
 
+impl TryFrom<String> for TrainingLevel {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
+            "STUDENT_PILOT" => Ok(TrainingLevel::StudentPilot),
+            "PRIVATE_PILOT" => Ok(TrainingLevel::PrivatePilot),
+            "INSTRUMENT_RATED" => Ok(TrainingLevel::InstrumentRated),
+            _ => Err(format!("Invalid training level: {}", value)),
+        }
+    }
+}
+
 impl BookingStatus {
     pub fn as_str(&self) -> &'static str {
         match self {
@@ -109,6 +122,20 @@ impl BookingStatus {
             BookingStatus::Cancelled => "CANCELLED",
             BookingStatus::Rescheduled => "RESCHEDULED",
             BookingStatus::Completed => "COMPLETED",
+        }
+    }
+}
+
+impl TryFrom<String> for BookingStatus {
+    type Error = String;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        match value.as_str() {
+            "SCHEDULED" => Ok(BookingStatus::Scheduled),
+            "CANCELLED" => Ok(BookingStatus::Cancelled),
+            "RESCHEDULED" => Ok(BookingStatus::Rescheduled),
+            "COMPLETED" => Ok(BookingStatus::Completed),
+            _ => Err(format!("Invalid booking status: {}", value)),
         }
     }
 }

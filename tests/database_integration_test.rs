@@ -1,4 +1,4 @@
-use core::models::{Booking, BookingStatus, Location, Student, TrainingLevel};
+use weather_core::models::{Booking, BookingStatus, Location, Student, TrainingLevel};
 use chrono::Utc;
 use sqlx::sqlite::SqlitePoolOptions;
 use sqlx::SqlitePool;
@@ -12,7 +12,7 @@ async fn setup_test_db() -> SqlitePool {
         .expect("Failed to create test database");
 
     // Run migrations
-    sqlx::migrate!("./migrations")
+    sqlx::migrate!("../migrations")
         .run(&pool)
         .await
         .expect("Failed to run migrations");

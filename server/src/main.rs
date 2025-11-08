@@ -109,7 +109,7 @@ async fn main() -> anyhow::Result<()> {
         // WebSocket
         .route("/ws", get(websocket::ws_handler))
         // Static files (for Elm frontend)
-        .nest_service("/", ServeDir::new("dist").fallback(routes::serve_spa()))
+        .fallback_service(ServeDir::new("dist").not_found_service(get(routes::serve_spa)))
         // CORS
         .layer(cors)
         // State

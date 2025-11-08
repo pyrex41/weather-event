@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "server"]
+members = ["core", "server", "tests"]
 resolver = "2"
 
 [workspace.dependencies]
@@ -9,7 +9,7 @@ tokio = { version = "1", features = ["full"] }
 tower-http = { version = "0.5", features = ["cors", "fs"] }
 
 # Database
-sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls", "migrate"] }
+sqlx = { version = "0.7", features = ["sqlite", "runtime-tokio-rustls", "migrate", "chrono"] }
 
 # Serialization
 serde = { version = "1", features = ["derive"] }

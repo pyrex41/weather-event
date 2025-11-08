@@ -7,13 +7,7 @@ use axum::{
     response::{Html, IntoResponse, Response},
 };
 
-pub fn serve_spa() -> axum::handler::Handler<(), ()> {
-    axum::handler::Handler::new(|_req| async {
-        serve_index().await
-    })
-}
-
-async fn serve_index() -> Response {
+pub async fn serve_spa() -> Response {
     match tokio::fs::read_to_string("dist/index.html").await {
         Ok(content) => Html(content).into_response(),
         Err(_) => (
