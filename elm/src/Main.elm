@@ -585,42 +585,42 @@ viewStudentForm model =
             div [ class "loading-spinner", attribute "data-testid" "loading-spinner" ] [ text "Loading..." ]
           else
             text ""
-        , div [ class "form-group" ]
-            [ label [] [ text "Name" ]
-            , input
-                [ type_ "text"
-                , placeholder "John Doe"
-                , value model.newStudentForm.name
-                , onInput (UpdateStudentForm NameField)
-                , attribute "data-testid" "student-name"
-                ]
-                []
-            , viewFieldError "name" model.studentFormErrors
-            ]
-        , div [ class "form-group" ]
-            [ label [] [ text "Email" ]
-            , input
-                [ type_ "email"
-                , placeholder "john@example.com"
-                , value model.newStudentForm.email
-                , onInput (UpdateStudentForm EmailField)
-                , attribute "data-testid" "student-email"
-                ]
-                []
-            , viewFieldError "email" model.studentFormErrors
-            ]
-        , div [ class "form-group" ]
-            [ label [] [ text "Phone" ]
-            , input
-                [ type_ "tel"
-                , placeholder "+1234567890"
-                , value model.newStudentForm.phone
-                , onInput (UpdateStudentForm PhoneField)
-                , attribute "data-testid" "student-phone"
-                ]
-                []
-            , viewFieldError "phone" model.studentFormErrors
-            ]
+         , div [ class "form-group" ]
+             [ label [] [ text "Name" ]
+             , input
+                 [ type_ "text"
+                 , placeholder "John Doe"
+                 , value model.newStudentForm.name
+                 , onInput (UpdateStudentForm NameField)
+                 , attribute "data-testid" "student-name"
+                 ]
+                 []
+             , viewFieldError "name" model.studentFormErrors
+             ]
+         , div [ class "form-group" ]
+             [ label [] [ text "Email" ]
+             , input
+                 [ type_ "email"
+                 , placeholder "john@example.com"
+                 , value model.newStudentForm.email
+                 , onInput (UpdateStudentForm EmailField)
+                 , attribute "data-testid" "student-email"
+                 ]
+                 []
+             , viewFieldError "email" model.studentFormErrors
+             ]
+         , div [ class "form-group" ]
+             [ label [] [ text "Phone" ]
+             , input
+                 [ type_ "tel"
+                 , placeholder "(555) 123-4567"
+                 , value model.newStudentForm.phone
+                 , onInput (UpdateStudentForm PhoneField)
+                 , attribute "data-testid" "student-phone"
+                 ]
+                 []
+             , viewFieldError "phone" model.studentFormErrors
+             ]
         , div [ class "form-group" ]
             [ label [] [ text "Training Level" ]
             , select
