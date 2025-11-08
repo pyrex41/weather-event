@@ -45,6 +45,7 @@ pub struct Student {
 pub struct Booking {
     pub id: String,
     pub student_id: String,
+    pub aircraft_type: String,
     pub scheduled_date: DateTime<Utc>,
     /// Stored as JSON TEXT in SQLite
     #[sqlx(json)]

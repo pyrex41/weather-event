@@ -29,6 +29,9 @@ init _ =
       , alerts = []
       , loading = False
       , error = Nothing
+      , successMessage = Nothing
+      , bookingFormErrors = []
+      , studentFormErrors = []
       , newBookingForm = emptyBookingForm
       , newStudentForm = emptyStudentForm
       , websocketStatus = Connecting
@@ -43,7 +46,9 @@ init _ =
 emptyBookingForm : BookingForm
 emptyBookingForm =
     { studentId = ""
+    , aircraftType = ""
     , scheduledDate = ""
+    , endTime = ""
     , locationName = ""
     , locationLat = ""
     , locationLon = ""
@@ -55,7 +60,7 @@ emptyStudentForm =
     { name = ""
     , email = ""
     , phone = ""
-    , trainingLevel = "STUDENT_PILOT"
+    , trainingLevel = ""
     }
 
 
@@ -82,9 +87,19 @@ update msg model =
                     ( { model | error = Just err, loading = False }, Cmd.none )
 
         CreateBooking ->
-            ( { model | loading = True }
-            , Api.createBooking model.newBookingForm BookingCreated
-            )
+            let
+                errors = validateBookingForm model.newBookingForm
+            in
+            if List.isEmpty errors then
+                ( { model
+                    | loading = True
+                    , bookingFormErrors = []
+                    , successMessage = Nothing
+                  }
+                , Api.createBooking model.newBookingForm BookingCreated
+                )
+            else
+                ( { model | bookingFormErrors = errors }, Cmd.none )
 
         BookingCreated result ->
             case result of
@@ -93,17 +108,35 @@ update msg model =
                         | bookings = booking :: model.bookings
                         , newBookingForm = emptyBookingForm
                         , loading = False
+                        , successMessage = Just "Booking created successfully"
+                        , bookingFormErrors = []
                       }
                     , Cmd.none
                     )
 
                 Err err ->
-                    ( { model | error = Just err, loading = False }, Cmd.none )
+                    ( { model
+                        | error = Just err
+                        , loading = False
+                        , bookingFormErrors = [ { field = "general", message = err } ]
+                      }
+                    , Cmd.none
+                    )
 
         CreateStudent ->
-            ( { model | loading = True }
-            , Api.createStudent model.newStudentForm StudentCreated
-            )
+            let
+                errors = validateStudentForm model.newStudentForm
+            in
+            if List.isEmpty errors then
+                ( { model
+                    | loading = True
+                    , studentFormErrors = []
+                    , successMessage = Nothing
+                  }
+                , Api.createStudent model.newStudentForm StudentCreated
+                )
+            else
+                ( { model | studentFormErrors = errors }, Cmd.none )
 
         StudentCreated result ->
             case result of
@@ -112,12 +145,20 @@ update msg model =
                         | students = student :: model.students
                         , newStudentForm = emptyStudentForm
                         , loading = False
+                        , successMessage = Just "Student created successfully"
+                        , studentFormErrors = []
                       }
                     , Cmd.none
                     )
 
                 Err err ->
-                    ( { model | error = Just err, loading = False }, Cmd.none )
+                    ( { model
+                        | error = Just err
+                        , loading = False
+                        , studentFormErrors = [ { field = "general", message = err } ]
+                      }
+                    , Cmd.none
+                    )
 
         UpdateBookingForm field value ->
             let
@@ -129,8 +170,14 @@ update msg model =
                         StudentIdField ->
                             { form | studentId = value }
 
+                        AircraftTypeField ->
+                            { form | aircraftType = value }
+
                         ScheduledDateField ->
                             { form | scheduledDate = value }
+
+                        EndTimeField ->
+                            { form | endTime = value }
 
                         LocationNameField ->
                             { form | locationName = value }
@@ -183,6 +230,9 @@ update msg model =
             , Cmd.none
             )
 
+        ClearSuccessMessage ->
+            ( { model | successMessage = Nothing }, Cmd.none )
+
         Tick _ ->
             ( model, Cmd.none )
 
@@ -220,13 +270,13 @@ viewWebSocketStatus : WebSocketStatus -> Html Msg
 viewWebSocketStatus status =
     case status of
         Connecting ->
-            span [ class "status-badge connecting" ] [ text "Connecting..." ]
+            span [ class "status-badge connecting", attribute "data-testid" "ws-status" ] [ text "Connecting..." ]
 
         Connected ->
-            span [ class "status-badge connected" ] [ text "● Live" ]
+            span [ class "status-badge connected", attribute "data-testid" "ws-status" ] [ text "● Live" ]
 
         Disconnected ->
-            span [ class "status-badge disconnected" ] [ text "○ Disconnected" ]
+            span [ class "status-badge disconnected", attribute "data-testid" "ws-status" ] [ text "○ Disconnected" ]
 
 
 viewNavigation : Model -> Html Msg
@@ -235,21 +285,25 @@ viewNavigation model =
         [ button
             [ class (navClass model Dashboard)
             , onClick (ChangePage Dashboard)
+            , attribute "data-testid" "nav-dashboard"
             ]
             [ text "Dashboard" ]
         , button
             [ class (navClass model Bookings)
             , onClick (ChangePage Bookings)
+            , attribute "data-testid" "nav-bookings"
             ]
             [ text "Bookings" ]
         , button
             [ class (navClass model Students)
             , onClick (ChangePage Students)
+            , attribute "data-testid" "nav-students"
             ]
             [ text "Students" ]
         , button
             [ class (navClass model Alerts)
             , onClick (ChangePage Alerts)
+            , attribute "data-testid" "nav-alerts"
             ]
             [ text "Alerts" ]
         ]
@@ -259,7 +313,6 @@ navClass : Model -> Page -> String
 navClass model page =
     if model.page == page then
         "nav-button active"
-
     else
         "nav-button"
 
@@ -291,7 +344,16 @@ viewContent model =
     div [ class "content" ]
         [ case model.error of
             Just err ->
-                div [ class "error" ] [ text ("Error: " ++ err) ]
+                div [ class "error", attribute "data-testid" "error-message" ] [ text ("Error: " ++ err) ]
+
+            Nothing ->
+                text ""
+        , case model.successMessage of
+            Just msg ->
+                div [ class "success", attribute "data-testid" "success-message" ]
+                    [ text msg
+                    , button [ class "success-dismiss", onClick ClearSuccessMessage ] [ text "×" ]
+                    ]
 
             Nothing ->
                 text ""
@@ -315,15 +377,15 @@ viewDashboard model =
     div [ class "dashboard" ]
         [ h2 [] [ text "Dashboard" ]
         , div [ class "dashboard-stats" ]
-            [ div [ class "stat-card" ]
+            [ div [ class "stat-card", attribute "data-testid" "stat-bookings" ]
                 [ h3 [] [ text (String.fromInt (List.length model.bookings)) ]
                 , p [] [ text "Total Bookings" ]
                 ]
-            , div [ class "stat-card" ]
+            , div [ class "stat-card", attribute "data-testid" "stat-students" ]
                 [ h3 [] [ text (String.fromInt (List.length model.students)) ]
                 , p [] [ text "Students" ]
                 ]
-            , div [ class "stat-card" ]
+            , div [ class "stat-card", attribute "data-testid" "stat-alerts" ]
                 [ h3 [] [ text (String.fromInt (List.length model.alerts)) ]
                 , p [] [ text "Active Alerts" ]
                 ]
@@ -337,6 +399,12 @@ viewBookings : Model -> Html Msg
 viewBookings model =
     div [ class "bookings-page" ]
         [ h2 [] [ text "Bookings" ]
+        , button
+            [ class "button button-primary"
+            , onClick (ChangePage Bookings)  -- This will be replaced with a proper show form action
+            , attribute "data-testid" "create-booking-btn"
+            ]
+            [ text "Create New Booking" ]
         , div [ class "form-card" ]
             [ h3 [] [ text "Create New Booking" ]
             , viewBookingForm model
@@ -349,7 +417,26 @@ viewBookings model =
 viewBookingForm : Model -> Html Msg
 viewBookingForm model =
     div [ class "form" ]
-        [ div [ class "form-group" ]
+        [ viewFormErrors model.bookingFormErrors
+        , if model.loading then
+            div [ class "loading-spinner", attribute "data-testid" "loading-spinner" ] [ text "Loading..." ]
+          else
+            text ""
+        , div [ class "form-group" ]
+            [ label [] [ text "Aircraft Type" ]
+            , select
+                [ onInput (UpdateBookingForm AircraftTypeField)
+                , value model.newBookingForm.aircraftType
+                , attribute "data-testid" "booking-aircraft"
+                ]
+                [ option [ value "" ] [ text "Select aircraft type" ]
+                , option [ value "Cessna 172" ] [ text "Cessna 172" ]
+                , option [ value "Piper Cherokee" ] [ text "Piper Cherokee" ]
+                , option [ value "Diamond DA40" ] [ text "Diamond DA40" ]
+                ]
+            , viewFieldError "aircraft-type" model.bookingFormErrors
+            ]
+        , div [ class "form-group" ]
             [ label [] [ text "Student" ]
             , select
                 [ onInput (UpdateBookingForm StudentIdField)
@@ -360,6 +447,7 @@ viewBookingForm model =
                         (\s -> option [ value s.id ] [ text s.name ])
                         model.students
                 )
+            , viewFieldError "student" model.bookingFormErrors
             ]
         , div [ class "form-group" ]
             [ label [] [ text "Scheduled Date (YYYY-MM-DDTHH:MM:SSZ)" ]
@@ -368,8 +456,22 @@ viewBookingForm model =
                 , placeholder "2024-01-15T14:00:00Z"
                 , value model.newBookingForm.scheduledDate
                 , onInput (UpdateBookingForm ScheduledDateField)
+                , attribute "data-testid" "booking-start-time"
                 ]
                 []
+            , viewFieldError "start-time" model.bookingFormErrors
+            ]
+        , div [ class "form-group" ]
+            [ label [] [ text "End Time (YYYY-MM-DDTHH:MM:SSZ)" ]
+            , input
+                [ type_ "text"
+                , placeholder "2024-01-15T16:00:00Z"
+                , value model.newBookingForm.endTime
+                , onInput (UpdateBookingForm EndTimeField)
+                , attribute "data-testid" "booking-end-time"
+                ]
+                []
+            , viewFieldError "end-time" model.bookingFormErrors
             ]
         , div [ class "form-group" ]
             [ label [] [ text "Location Name" ]
@@ -378,8 +480,10 @@ viewBookingForm model =
                 , placeholder "KTOA"
                 , value model.newBookingForm.locationName
                 , onInput (UpdateBookingForm LocationNameField)
+                , attribute "data-testid" "booking-location"
                 ]
                 []
+            , viewFieldError "location" model.bookingFormErrors
             ]
         , div [ class "form-row" ]
             [ div [ class "form-group" ]
@@ -407,6 +511,7 @@ viewBookingForm model =
             [ class "button button-primary"
             , onClick CreateBooking
             , disabled model.loading
+            , attribute "data-testid" "submit-booking-btn"
             ]
             [ text
                 (if model.loading then
@@ -422,22 +527,29 @@ viewBookingForm model =
 viewBookingsList : List Booking -> Html Msg
 viewBookingsList bookings =
     if List.isEmpty bookings then
-        p [] [ text "No bookings found." ]
+        p [ attribute "data-testid" "empty-bookings" ] [ text "No bookings found." ]
 
     else
-        div [ class "bookings-list" ]
+        div [ class "bookings-list", attribute "data-testid" "booking-list" ]
             (List.map viewBookingCard bookings)
 
 
 viewBookingCard : Booking -> Html Msg
 viewBookingCard booking =
-    div [ class ("booking-card status-" ++ String.toLower booking.status) ]
+    div [ class ("booking-card status-" ++ String.toLower booking.status), attribute "data-testid" "booking-item" ]
         [ div [ class "booking-header" ]
             [ h4 [] [ text booking.departureLocation.name ]
             , span [ class "status-badge" ] [ text booking.status ]
             ]
+        , p [] [ text ("Aircraft: " ++ booking.aircraftType) ]
         , p [] [ text ("Date: " ++ formatDateWithTimezone booking.scheduledDate) ]
         , p [] [ text ("Student ID: " ++ booking.studentId) ]
+        , button
+            [ class "button button-secondary"
+            , attribute "data-testid" "reschedule-btn"
+            , onClick (ChangePage Bookings)  -- Placeholder - reschedule feature not yet implemented
+            ]
+            [ text "Reschedule" ]
         ]
 
 
@@ -450,6 +562,12 @@ viewStudents : Model -> Html Msg
 viewStudents model =
     div [ class "students-page" ]
         [ h2 [] [ text "Students" ]
+        , button
+            [ class "button button-primary"
+            , onClick (ChangePage Students)  -- This will be replaced with a proper show form action
+            , attribute "data-testid" "create-student-btn"
+            ]
+            [ text "Add New Student" ]
         , div [ class "form-card" ]
             [ h3 [] [ text "Add New Student" ]
             , viewStudentForm model
@@ -462,15 +580,22 @@ viewStudents model =
 viewStudentForm : Model -> Html Msg
 viewStudentForm model =
     div [ class "form" ]
-        [ div [ class "form-group" ]
+        [ viewFormErrors model.studentFormErrors
+        , if model.loading then
+            div [ class "loading-spinner", attribute "data-testid" "loading-spinner" ] [ text "Loading..." ]
+          else
+            text ""
+        , div [ class "form-group" ]
             [ label [] [ text "Name" ]
             , input
                 [ type_ "text"
                 , placeholder "John Doe"
                 , value model.newStudentForm.name
                 , onInput (UpdateStudentForm NameField)
+                , attribute "data-testid" "student-name"
                 ]
                 []
+            , viewFieldError "name" model.studentFormErrors
             ]
         , div [ class "form-group" ]
             [ label [] [ text "Email" ]
@@ -479,8 +604,10 @@ viewStudentForm model =
                 , placeholder "john@example.com"
                 , value model.newStudentForm.email
                 , onInput (UpdateStudentForm EmailField)
+                , attribute "data-testid" "student-email"
                 ]
                 []
+            , viewFieldError "email" model.studentFormErrors
             ]
         , div [ class "form-group" ]
             [ label [] [ text "Phone" ]
@@ -489,24 +616,30 @@ viewStudentForm model =
                 , placeholder "+1234567890"
                 , value model.newStudentForm.phone
                 , onInput (UpdateStudentForm PhoneField)
+                , attribute "data-testid" "student-phone"
                 ]
                 []
+            , viewFieldError "phone" model.studentFormErrors
             ]
         , div [ class "form-group" ]
             [ label [] [ text "Training Level" ]
             , select
                 [ onInput (UpdateStudentForm TrainingLevelField)
                 , value model.newStudentForm.trainingLevel
+                , attribute "data-testid" "student-training-level"
                 ]
-                [ option [ value "STUDENT_PILOT" ] [ text "Student Pilot" ]
+                [ option [ value "" ] [ text "Select training level" ]
+                , option [ value "STUDENT_PILOT" ] [ text "Student Pilot" ]
                 , option [ value "PRIVATE_PILOT" ] [ text "Private Pilot" ]
                 , option [ value "INSTRUMENT_RATED" ] [ text "Instrument Rated" ]
                 ]
+            , viewFieldError "training-level" model.studentFormErrors
             ]
         , button
             [ class "button button-primary"
             , onClick CreateStudent
             , disabled model.loading
+            , attribute "data-testid" "submit-student-btn"
             ]
             [ text
                 (if model.loading then
@@ -522,16 +655,16 @@ viewStudentForm model =
 viewStudentsList : List Student -> Html Msg
 viewStudentsList students =
     if List.isEmpty students then
-        p [] [ text "No students found." ]
+        p [ attribute "data-testid" "empty-students" ] [ text "No students found." ]
 
     else
-        div [ class "students-list" ]
+        div [ class "students-list", attribute "data-testid" "student-list" ]
             (List.map viewStudentCard students)
 
 
 viewStudentCard : Student -> Html Msg
 viewStudentCard student =
-    div [ class "student-card" ]
+    div [ class "student-card", attribute "data-testid" "student-item" ]
         [ h4 [] [ text student.name ]
         , p [] [ text ("Email: " ++ student.email) ]
         , p [] [ text ("Phone: " ++ student.phone) ]
@@ -575,3 +708,97 @@ viewAlertCard alert =
             ]
             [ text "Dismiss" ]
         ]
+
+
+viewFormErrors : List FormError -> Html Msg
+viewFormErrors errors =
+    case List.filter (\e -> e.field == "general") errors of
+        [] ->
+            text ""
+
+        generalErrors ->
+            div [ class "form-errors" ]
+                (List.map (\e -> div [ class "error-message" ] [ text e.message ]) generalErrors)
+
+
+viewFieldError : String -> List FormError -> Html Msg
+viewFieldError fieldName errors =
+    case List.filter (\e -> e.field == fieldName) errors of
+        [] ->
+            text ""
+
+        fieldErrors ->
+            div [ class "field-error", attribute "data-testid" ("error-" ++ fieldName) ]
+                [ text (String.join ", " (List.map .message fieldErrors)) ]
+
+
+validateStudentForm : StudentForm -> List FormError
+validateStudentForm form =
+    let
+        nameErrors =
+            if String.isEmpty (String.trim form.name) then
+                [ { field = "name", message = "Name is required" } ]
+            else if String.length (String.trim form.name) < 2 then
+                [ { field = "name", message = "Name must be at least 2 characters" } ]
+            else
+                []
+
+        emailErrors =
+            if String.isEmpty (String.trim form.email) then
+                [ { field = "email", message = "Email is required" } ]
+            else if not (String.contains "@" form.email) then
+                [ { field = "email", message = "Please enter a valid email address" } ]
+            else
+                []
+
+        phoneErrors =
+            if String.isEmpty (String.trim form.phone) then
+                [ { field = "phone", message = "Phone is required" } ]
+            else
+                []
+
+        trainingLevelErrors =
+            if String.isEmpty form.trainingLevel then
+                [ { field = "training-level", message = "Training level is required" } ]
+            else
+                []
+    in
+    nameErrors ++ emailErrors ++ phoneErrors ++ trainingLevelErrors
+
+
+validateBookingForm : BookingForm -> List FormError
+validateBookingForm form =
+    let
+        aircraftErrors =
+            if String.isEmpty form.aircraftType then
+                [ { field = "aircraft-type", message = "Aircraft type is required" } ]
+            else
+                []
+
+        studentErrors =
+            if String.isEmpty form.studentId then
+                [ { field = "student", message = "Student selection is required" } ]
+            else
+                []
+
+        dateErrors =
+            if String.isEmpty (String.trim form.scheduledDate) then
+                [ { field = "start-time", message = "Start time is required" } ]
+            else
+                []
+
+        endTimeErrors =
+            if String.isEmpty (String.trim form.endTime) then
+                [ { field = "end-time", message = "End time is required" } ]
+            else if not (String.isEmpty (String.trim form.scheduledDate)) && form.endTime < form.scheduledDate then
+                [ { field = "end-time", message = "End time must be after start time" } ]
+            else
+                []
+
+        locationErrors =
+            if String.isEmpty (String.trim form.locationName) then
+                [ { field = "location", message = "Location is required" } ]
+            else
+                []
+    in
+    aircraftErrors ++ studentErrors ++ dateErrors ++ endTimeErrors ++ locationErrors

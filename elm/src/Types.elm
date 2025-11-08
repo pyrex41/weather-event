@@ -22,6 +22,7 @@ type alias Student =
 type alias Booking =
     { id : String
     , studentId : String
+    , aircraftType : String
     , scheduledDate : String
     , departureLocation : Location
     , status : String
@@ -59,6 +60,9 @@ type alias Model =
     , alerts : List Alert
     , loading : Bool
     , error : Maybe String
+    , successMessage : Maybe String
+    , bookingFormErrors : List FormError
+    , studentFormErrors : List FormError
     , newBookingForm : BookingForm
     , newStudentForm : StudentForm
     , websocketStatus : WebSocketStatus
@@ -67,7 +71,9 @@ type alias Model =
 
 type alias BookingForm =
     { studentId : String
+    , aircraftType : String
     , scheduledDate : String
+    , endTime : String
     , locationName : String
     , locationLat : String
     , locationLon : String
@@ -88,6 +94,12 @@ type WebSocketStatus
     | Disconnected
 
 
+type alias FormError =
+    { field : String
+    , message : String
+    }
+
+
 type Msg
     = ChangePage Page
     | GotBookings (Result String (List Booking))
@@ -102,12 +114,15 @@ type Msg
     | WebSocketConnected
     | WebSocketDisconnected
     | DismissAlert String
+    | ClearSuccessMessage
     | Tick Time.Posix
 
 
 type BookingFormField
     = StudentIdField
+    | AircraftTypeField
     | ScheduledDateField
+    | EndTimeField
     | LocationNameField
     | LocationLatField
     | LocationLonField

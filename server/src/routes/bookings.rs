@@ -28,6 +28,7 @@ fn default_limit() -> i64 {
 #[derive(Debug, Deserialize)]
 pub struct CreateBookingRequest {
     pub student_id: String,
+    pub aircraft_type: String,
     pub scheduled_date: DateTime<Utc>,
     pub departure_location: Location,
 }
@@ -36,6 +37,7 @@ pub struct CreateBookingRequest {
 pub struct BookingResponse {
     pub id: String,
     pub student_id: String,
+    pub aircraft_type: String,
     pub scheduled_date: DateTime<Utc>,
     pub departure_location: Location,
     pub status: String,
@@ -46,6 +48,7 @@ impl From<Booking> for BookingResponse {
         Self {
             id: booking.id,
             student_id: booking.student_id,
+            aircraft_type: booking.aircraft_type,
             scheduled_date: booking.scheduled_date,
             departure_location: booking.departure_location,
             status: booking.status.as_str().to_string(),
@@ -63,7 +66,7 @@ pub async fn list_bookings(
     let offset = (page - 1) * limit;
 
     let bookings = sqlx::query_as::<_, Booking>(
-        "SELECT id, student_id, scheduled_date, departure_location, status
+        "SELECT id, student_id, aircraft_type, scheduled_date, departure_location, status
          FROM bookings
          ORDER BY scheduled_date DESC
          LIMIT ? OFFSET ?"
@@ -85,7 +88,7 @@ pub async fn get_booking(
     State(state): State<AppState>,
 ) -> Result<Json<BookingResponse>, StatusCode> {
     let booking = sqlx::query_as::<_, Booking>(
-        "SELECT id, student_id, scheduled_date, departure_location, status FROM bookings WHERE id = ?"
+        "SELECT id, student_id, aircraft_type, scheduled_date, departure_location, status FROM bookings WHERE id = ?"
     )
     .bind(&id)
     .fetch_optional(&state.db)
@@ -112,10 +115,11 @@ pub async fn create_booking(
 
     // Insert booking
     sqlx::query(
-        "INSERT INTO bookings (id, student_id, scheduled_date, departure_location, status) VALUES (?, ?, ?, ?, ?)"
+        "INSERT INTO bookings (id, student_id, aircraft_type, scheduled_date, departure_location, status) VALUES (?, ?, ?, ?, ?, ?)"
     )
     .bind(&id)
     .bind(&req.student_id)
+    .bind(&req.aircraft_type)
     .bind(&req.scheduled_date)
     .bind(&location_json)
     .bind(BookingStatus::Scheduled.as_str())
@@ -128,7 +132,7 @@ pub async fn create_booking(
 
     // Fetch created booking
     let booking = sqlx::query_as::<_, Booking>(
-        "SELECT id, student_id, scheduled_date, departure_location, status FROM bookings WHERE id = ?"
+        "SELECT id, student_id, aircraft_type, scheduled_date, departure_location, status FROM bookings WHERE id = ?"
     )
     .bind(&id)
     .fetch_one(&state.db)

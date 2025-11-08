@@ -266,6 +266,50 @@ npm run build
 # The built files will be in elm/dist/
 ```
 
+### E2E Testing
+
+The project includes comprehensive E2E tests using Playwright to ensure the full application works end-to-end:
+
+```bash
+# Install E2E test dependencies
+cd e2e
+npm install
+
+# Install Playwright browsers
+npx playwright install
+
+# Run E2E tests locally
+./run-tests.sh
+
+# Or run directly
+npm run test
+
+# Run tests in headed mode (visible browser)
+npm run test:headed
+
+# Run tests with UI mode (interactive)
+npm run test:ui
+
+# Debug tests
+npm run test:debug
+
+# View test reports
+npm run report
+```
+
+**E2E Test Coverage:**
+- ✅ Booking creation flow (happy path + validation + loading states)
+- ✅ Real-time weather alerts via WebSocket
+- ✅ WebSocket connection status and reconnection
+- ✅ AI-powered reschedule flow with availability badges
+- ✅ Student management with dashboard stats
+- ✅ Error scenarios (API failures, timeouts, validation)
+- ✅ Multi-browser support (Chromium, Firefox, WebKit)
+
+**Test Execution Time:** < 30 seconds with aggressive mocking
+
+**CI Integration:** Tests run automatically on GitHub Actions for all PRs and pushes to main/develop branches.
+
 ### Manual Testing
 
 1. Start the backend server:
@@ -380,8 +424,8 @@ All levels prohibit: Thunderstorms, Icing conditions
 - [x] AI reschedule integration with caching
 - [x] Email/SMS notification infrastructure
 - [x] Unit and integration tests (15+ test cases)
+- [x] E2E tests with Playwright (25+ scenarios, <30s execution)
 - [ ] Frontend npm package installation fixes
-- [ ] E2E tests with Playwright
 - [ ] Deployment configuration (Fly.io)
 - [ ] Demo video
 

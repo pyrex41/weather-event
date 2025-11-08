@@ -21,9 +21,10 @@ locationDecoder =
 
 bookingDecoder : Decoder Booking
 bookingDecoder =
-    Decode.map5 Booking
+    Decode.map6 Booking
         (Decode.field "id" Decode.string)
         (Decode.field "student_id" Decode.string)
+        (Decode.field "aircraft_type" Decode.string)
         (Decode.field "scheduled_date" Decode.string)
         (Decode.field "departure_location" locationDecoder)
         (Decode.field "status" Decode.string)
@@ -71,6 +72,7 @@ createBooking form toMsg =
         body =
             Encode.object
                 [ ( "student_id", Encode.string form.studentId )
+                , ( "aircraft_type", Encode.string form.aircraftType )
                 , ( "scheduled_date", Encode.string form.scheduledDate )
                 , ( "departure_location"
                   , Encode.object

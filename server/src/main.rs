@@ -77,19 +77,28 @@ async fn main() -> anyhow::Result<()> {
     };
 
     // Configure CORS
-    let cors = if let Ok(origins) = std::env::var("ALLOWED_ORIGINS") {
-        // Production: use specified origins
-        let origins: Vec<_> = origins
-            .split(',')
-            .filter_map(|s| s.trim().parse().ok())
-            .collect();
+    let cors = if let Ok(origins_str) = std::env::var("ALLOWED_ORIGINS") {
+        if origins_str.trim() == "*" {
+            // Allow any origin
+            tracing::info!("CORS configured to allow any origin");
+            CorsLayer::new()
+                .allow_origin(tower_http::cors::Any)
+                .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+                .allow_headers([axum::http::header::CONTENT_TYPE])
+        } else {
+            // Production: use specified origins
+            let origins: Vec<_> = origins_str
+                .split(',')
+                .filter_map(|s| s.trim().parse().ok())
+                .collect();
 
-        tracing::info!("CORS configured with allowed origins: {:?}", origins);
+            tracing::info!("CORS configured with allowed origins: {:?}", origins);
 
-        CorsLayer::new()
-            .allow_origin(origins)
-            .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
-            .allow_headers([axum::http::header::CONTENT_TYPE])
+            CorsLayer::new()
+                .allow_origin(origins)
+                .allow_methods([axum::http::Method::GET, axum::http::Method::POST])
+                .allow_headers([axum::http::header::CONTENT_TYPE])
+        }
     } else {
         // Development: permissive CORS
         tracing::warn!("CORS configured in permissive mode (ALLOWED_ORIGINS not set)");

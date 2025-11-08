@@ -1,0 +1,121 @@
+name: E2E Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    services:
+      # PostgreSQL service (if needed for full integration tests)
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: weather_app_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Setup Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Cache Rust dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y sqlite3 libsqlite3-dev
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 8
+
+      - name: Install Elm
+        run: |
+          npm install -g elm@0.19.1
+          npm install -g elm-test@0.19.1
+
+      - name: Install Elm frontend dependencies
+        run: |
+          cd elm
+          pnpm install
+
+      - name: Build Rust backend
+        run: |
+          cd server
+          cargo build --release
+
+      - name: Setup test database
+        run: |
+          # Create test database file
+          touch weather_app_test.db
+          # Run migrations if available
+          cd server
+          cargo run --bin migrate || echo "No migration binary found"
+
+      - name: Install E2E test dependencies
+        run: |
+          cd e2e
+          pnpm install
+
+      - name: Install Playwright browsers (Chromium only for CI)
+        run: |
+          cd e2e
+          pnpx playwright install chromium
+
+      - name: Run E2E tests
+        run: |
+          cd e2e
+          pnpm run test
+        env:
+          DATABASE_URL: sqlite:/tmp/weather_app_test.db
+          WEATHER_API_KEY: test_weather_key
+          OPENAI_API_KEY: test_openai_key
+          RESEND_API_KEY: test_resend_key
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 30
+
+      - name: Upload test videos (on failure)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-videos
+          path: e2e/test-results/
+          retention-days: 7
