@@ -341,6 +341,7 @@ mod tests {
         Booking {
             id: "test123".to_string(),
             student_id: "student1".to_string(),
+            aircraft_type: "Cessna 172".to_string(),
             scheduled_date: Utc::now(),
             departure_location: Location {
                 lat: 33.8113,

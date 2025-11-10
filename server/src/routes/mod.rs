@@ -1,3 +1,4 @@
+pub mod alerts;
 pub mod bookings;
 pub mod students;
 pub mod websocket;

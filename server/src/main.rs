@@ -12,6 +12,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
+mod error;
 mod routes;
 mod scheduler;
 
@@ -128,6 +129,7 @@ async fn main() -> anyhow::Result<()> {
         // Health check
         .route("/health", get(health_check))
         // API routes
+        .route("/api/alerts", get(routes::alerts::list_alerts))
         .route("/api/bookings", get(routes::bookings::list_bookings))
         .route("/api/bookings", post(routes::bookings::create_booking))
         .route("/api/bookings/:id", get(routes::bookings::get_booking))

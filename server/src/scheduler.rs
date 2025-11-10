@@ -300,20 +300,41 @@ async fn generate_weather_alerts(
         // Generate alert if weather is concerning (score < 9.0)
         if score < 9.0 {
             let message = create_alert_message(&severity, &weather, &student, score as f64);
+            let alert_id = uuid::Uuid::new_v4().to_string();
+            let now = Utc::now();
 
             let location_str = format!("({:.4}, {:.4})",
                 booking.departure_location.lat,
                 booking.departure_location.lon
             );
 
+            // Persist alert to database
+            if let Err(e) = sqlx::query(
+                "INSERT INTO weather_alerts (id, booking_id, severity, message, location, student_name, original_date, created_at)
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+            )
+            .bind(&alert_id)
+            .bind(&booking.id)
+            .bind(severity_to_string(&severity))
+            .bind(&message)
+            .bind(&location_str)
+            .bind(&student.name)
+            .bind(&booking.scheduled_date)
+            .bind(&now)
+            .execute(db)
+            .await {
+                tracing::error!("Failed to persist alert to database: {}", e);
+                continue;
+            }
+
             let alert = json!({
                 "type": "weather_alert",
-                "id": uuid::Uuid::new_v4().to_string(),
+                "id": alert_id,
                 "booking_id": booking.id,
                 "message": message,
                 "severity": severity_to_string(&severity),
                 "location": location_str,
-                "timestamp": Utc::now().to_rfc3339(),
+                "timestamp": now.to_rfc3339(),
                 "student_name": student.name,
                 "original_date": booking.scheduled_date.to_rfc3339(),
             });

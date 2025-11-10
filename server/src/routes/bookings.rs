@@ -1,4 +1,4 @@
-use crate::AppState;
+use crate::{error::ApiResult, AppState};
 use axum::{
     extract::{Path, Query, State},
     http::StatusCode,
@@ -60,7 +60,7 @@ impl From<Booking> for BookingResponse {
 pub async fn list_bookings(
     Query(params): Query<PaginationParams>,
     State(state): State<AppState>,
-) -> Result<Json<Vec<BookingResponse>>, StatusCode> {
+) -> ApiResult<Json<Vec<BookingResponse>>> {
     // Validate and sanitize pagination parameters
     let page = params.page.max(1);
     let limit = params.limit.clamp(1, 100); // Max 100 items per page
@@ -75,12 +75,9 @@ pub async fn list_bookings(
     .bind(limit)
     .bind(offset)
     .fetch_all(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch bookings: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
+    tracing::debug!("Retrieved {} bookings (page={}, limit={})", bookings.len(), page, limit);
     Ok(Json(bookings.into_iter().map(BookingResponse::from).collect()))
 }
 
