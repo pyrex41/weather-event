@@ -84,18 +84,14 @@ pub async fn list_bookings(
 pub async fn get_booking(
     Path(id): Path<String>,
     State(state): State<AppState>,
-) -> Result<Json<BookingResponse>, StatusCode> {
+) -> ApiResult<Json<BookingResponse>> {
     let booking = sqlx::query_as::<_, Booking>(
         "SELECT id, student_id, aircraft_type, scheduled_date, departure_location, status FROM bookings WHERE id = ?"
     )
     .bind(&id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch booking: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or_else(|| crate::error::ApiError::not_found("Booking"))?;
 
     Ok(Json(booking.into()))
 }
@@ -103,13 +99,12 @@ pub async fn get_booking(
 pub async fn create_booking(
     State(state): State<AppState>,
     Json(req): Json<CreateBookingRequest>,
-) -> Result<(StatusCode, Json<BookingResponse>), StatusCode> {
+) -> ApiResult<(StatusCode, Json<BookingResponse>)> {
     // Generate UUID
     let id = uuid::Uuid::new_v4().to_string();
 
     // Serialize location to JSON
-    let location_json = serde_json::to_string(&req.departure_location)
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
+    let location_json = serde_json::to_string(&req.departure_location)?;
 
     // Insert booking
     sqlx::query(
@@ -122,11 +117,7 @@ pub async fn create_booking(
     .bind(&location_json)
     .bind(BookingStatus::Scheduled.as_str())
     .execute(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to create booking: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
     // Fetch created booking
     let booking = sqlx::query_as::<_, Booking>(
@@ -134,12 +125,9 @@ pub async fn create_booking(
     )
     .bind(&id)
     .fetch_one(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch created booking: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
+    tracing::info!("Created booking {} for student {}", booking.id, booking.student_id);
     Ok((StatusCode::CREATED, Json(booking.into())))
 }
 
@@ -158,19 +146,15 @@ pub struct RescheduleRequest {
 pub async fn get_reschedule_suggestions(
     Path(id): Path<String>,
     State(state): State<AppState>,
-) -> Result<Json<RescheduleOptionsResponse>, StatusCode> {
+) -> ApiResult<Json<RescheduleOptionsResponse>> {
     // Fetch the booking
     let booking = sqlx::query_as::<_, Booking>(
         "SELECT id, student_id, aircraft_type, scheduled_date, departure_location, status FROM bookings WHERE id = ?"
     )
     .bind(&id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch booking: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or_else(|| crate::error::ApiError::not_found("Booking"))?;
 
     // Fetch the student
     let student = sqlx::query_as::<_, Student>(
@@ -178,15 +162,8 @@ pub async fn get_reschedule_suggestions(
     )
     .bind(&booking.student_id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch student: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .ok_or_else(|| {
-        tracing::error!("Student not found for booking {}", id);
-        StatusCode::NOT_FOUND
-    })?;
+    .await?
+    .ok_or_else(|| crate::error::ApiError::not_found("Student"))?;
 
     // Get weather API key from environment
     let weather_api_key = std::env::var("WEATHER_API_KEY")
@@ -227,11 +204,7 @@ pub async fn get_reschedule_suggestions(
     let options = state
         .ai_client
         .generate_reschedule_options(&booking, &student, &weather_forecast, &instructor_schedule)
-        .await
-        .map_err(|e| {
-            tracing::error!("Failed to generate reschedule options: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        .await?;
 
     Ok(Json(RescheduleOptionsResponse { options }))
 }
@@ -242,19 +215,15 @@ pub async fn reschedule_booking(
     Path(id): Path<String>,
     State(state): State<AppState>,
     Json(req): Json<RescheduleRequest>,
-) -> Result<Json<BookingResponse>, StatusCode> {
+) -> ApiResult<Json<BookingResponse>> {
     // Fetch the booking
     let booking = sqlx::query_as::<_, Booking>(
         "SELECT id, student_id, aircraft_type, scheduled_date, departure_location, status FROM bookings WHERE id = ?"
     )
     .bind(&id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch booking: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .ok_or(StatusCode::NOT_FOUND)?;
+    .await?
+    .ok_or_else(|| crate::error::ApiError::not_found("Booking"))?;
 
     // Fetch the student for notification
     let student = sqlx::query_as::<_, Student>(
@@ -262,15 +231,8 @@ pub async fn reschedule_booking(
     )
     .bind(&booking.student_id)
     .fetch_optional(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch student: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?
-    .ok_or_else(|| {
-        tracing::error!("Student not found for booking {}", id);
-        StatusCode::NOT_FOUND
-    })?;
+    .await?
+    .ok_or_else(|| crate::error::ApiError::not_found("Student"))?;
 
     // Update booking with new date
     sqlx::query(
@@ -278,12 +240,9 @@ pub async fn reschedule_booking(
     )
     .bind(&req.new_scheduled_date)
     .bind(BookingStatus::Rescheduled.as_str())
+    .bind(&id)
     .execute(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to update booking: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
     // Log reschedule event
     let reschedule_event_id = uuid::Uuid::new_v4().to_string();
@@ -322,12 +281,9 @@ pub async fn reschedule_booking(
     )
     .bind(&id)
     .fetch_one(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch updated booking: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
+    tracing::info!("Rescheduled booking {} from {} to {}", id, booking.scheduled_date, req.new_scheduled_date);
     Ok(Json(updated_booking.into()))
 }
 

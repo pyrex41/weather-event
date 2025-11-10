@@ -139,6 +139,13 @@ impl From<uuid::Error> for ApiError {
     }
 }
 
+impl From<anyhow::Error> for ApiError {
+    fn from(err: anyhow::Error) -> Self {
+        tracing::error!("Anyhow error: {:?}", err);
+        ApiError::internal_error(format!("Operation failed: {}", err))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

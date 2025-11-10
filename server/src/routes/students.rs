@@ -1,4 +1,4 @@
-use crate::AppState;
+use crate::{error::ApiResult, AppState};
 use axum::{
     extract::State,
     http::StatusCode,
@@ -38,30 +38,31 @@ impl From<Student> for StudentResponse {
 
 pub async fn list_students(
     State(state): State<AppState>,
-) -> Result<Json<Vec<StudentResponse>>, StatusCode> {
+) -> ApiResult<Json<Vec<StudentResponse>>> {
     let students = sqlx::query_as::<_, Student>(
         "SELECT id, name, email, phone, training_level FROM students ORDER BY name"
     )
     .fetch_all(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch students: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
+    tracing::debug!("Retrieved {} students", students.len());
     Ok(Json(students.into_iter().map(StudentResponse::from).collect()))
 }
 
 pub async fn create_student(
     State(state): State<AppState>,
     Json(req): Json<CreateStudentRequest>,
-) -> Result<(StatusCode, Json<StudentResponse>), StatusCode> {
+) -> ApiResult<(StatusCode, Json<StudentResponse>)> {
     // Validate training level
     let training_level = match req.training_level.as_str() {
         "STUDENT_PILOT" => TrainingLevel::StudentPilot,
         "PRIVATE_PILOT" => TrainingLevel::PrivatePilot,
         "INSTRUMENT_RATED" => TrainingLevel::InstrumentRated,
-        _ => return Err(StatusCode::BAD_REQUEST),
+        _ => {
+            return Err(crate::error::ApiError::validation_error(
+                format!("Invalid training level: {}. Must be one of: STUDENT_PILOT, PRIVATE_PILOT, INSTRUMENT_RATED", req.training_level)
+            ));
+        }
     };
 
     // Generate UUID
@@ -77,11 +78,7 @@ pub async fn create_student(
     .bind(&req.phone)
     .bind(training_level.as_str())
     .execute(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to create student: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
     // Fetch created student
     let student = sqlx::query_as::<_, Student>(
@@ -89,11 +86,8 @@ pub async fn create_student(
     )
     .bind(&id)
     .fetch_one(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::error!("Failed to fetch created student: {}", e);
-        StatusCode::INTERNAL_SERVER_ERROR
-    })?;
+    .await?;
 
+    tracing::info!("Created student {} ({})", student.name, student.id);
     Ok((StatusCode::CREATED, Json(student.into())))
 }
