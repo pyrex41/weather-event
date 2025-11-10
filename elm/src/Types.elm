@@ -66,6 +66,16 @@ type alias Model =
     , newBookingForm : BookingForm
     , newStudentForm : StudentForm
     , websocketStatus : WebSocketStatus
+    , rescheduleModal : Maybe RescheduleModal
+    }
+
+
+type alias RescheduleModal =
+    { booking : Booking
+    , options : List RescheduleOption
+    , loading : Bool
+    , selectedOption : Maybe RescheduleOption
+    , showConfirmation : Bool
     }
 
 
@@ -116,6 +126,14 @@ type Msg
     | DismissAlert String
     | ClearSuccessMessage
     | Tick Time.Posix
+    | OpenRescheduleModal Booking
+    | CloseRescheduleModal
+    | GotRescheduleOptions (Result String (List RescheduleOption))
+    | SelectRescheduleOption RescheduleOption
+    | ShowRescheduleConfirmation
+    | CancelRescheduleConfirmation
+    | ConfirmReschedule
+    | RescheduleCompleted (Result String Booking)
 
 
 type BookingFormField

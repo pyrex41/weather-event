@@ -35,6 +35,7 @@ init _ =
       , newBookingForm = emptyBookingForm
       , newStudentForm = emptyStudentForm
       , websocketStatus = Connecting
+      , rescheduleModal = Nothing
       }
     , Cmd.batch
         [ Api.getBookings GotBookings
@@ -236,6 +237,129 @@ update msg model =
         Tick _ ->
             ( model, Cmd.none )
 
+        OpenRescheduleModal booking ->
+            ( { model
+                | rescheduleModal =
+                    Just
+                        { booking = booking
+                        , options = []
+                        , loading = True
+                        , selectedOption = Nothing
+                        , showConfirmation = False
+                        }
+              }
+            , Api.getRescheduleSuggestions booking.id GotRescheduleOptions
+            )
+
+        CloseRescheduleModal ->
+            ( { model | rescheduleModal = Nothing }, Cmd.none )
+
+        GotRescheduleOptions result ->
+            case result of
+                Ok options ->
+                    case model.rescheduleModal of
+                        Just modal ->
+                            ( { model
+                                | rescheduleModal =
+                                    Just { modal | options = options, loading = False }
+                              }
+                            , Cmd.none
+                            )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                Err err ->
+                    ( { model
+                        | error = Just ("Failed to get reschedule options: " ++ err)
+                        , rescheduleModal = Nothing
+                      }
+                    , Cmd.none
+                    )
+
+        SelectRescheduleOption option ->
+            case model.rescheduleModal of
+                Just modal ->
+                    ( { model
+                        | rescheduleModal =
+                            Just { modal | selectedOption = Just option, showConfirmation = True }
+                      }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        ShowRescheduleConfirmation ->
+            case model.rescheduleModal of
+                Just modal ->
+                    ( { model
+                        | rescheduleModal = Just { modal | showConfirmation = True }
+                      }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        CancelRescheduleConfirmation ->
+            case model.rescheduleModal of
+                Just modal ->
+                    ( { model
+                        | rescheduleModal =
+                            Just { modal | selectedOption = Nothing, showConfirmation = False }
+                      }
+                    , Cmd.none
+                    )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        ConfirmReschedule ->
+            case model.rescheduleModal of
+                Just modal ->
+                    case modal.selectedOption of
+                        Just option ->
+                            ( { model
+                                | rescheduleModal = Just { modal | loading = True }
+                              }
+                            , Api.rescheduleBooking modal.booking.id option.dateTime RescheduleCompleted
+                            )
+
+                        Nothing ->
+                            ( model, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
+
+        RescheduleCompleted result ->
+            case result of
+                Ok updatedBooking ->
+                    ( { model
+                        | bookings =
+                            List.map
+                                (\b ->
+                                    if b.id == updatedBooking.id then
+                                        updatedBooking
+
+                                    else
+                                        b
+                                )
+                                model.bookings
+                        , rescheduleModal = Nothing
+                        , successMessage = Just "Booking rescheduled successfully"
+                      }
+                    , Cmd.none
+                    )
+
+                Err err ->
+                    ( { model
+                        | error = Just ("Failed to reschedule booking: " ++ err)
+                        , rescheduleModal = Nothing
+                      }
+                    , Cmd.none
+                    )
+
 
 subscriptions : Model -> Sub Msg
 subscriptions _ =
@@ -254,6 +378,12 @@ view model =
         , viewNavigation model
         , viewAlerts model
         , viewContent model
+        , case model.rescheduleModal of
+            Just modal ->
+                viewRescheduleModal modal
+
+            Nothing ->
+                text ""
         ]
 
 
@@ -547,7 +677,7 @@ viewBookingCard booking =
         , button
             [ class "button button-secondary"
             , attribute "data-testid" "reschedule-btn"
-            , onClick (ChangePage Bookings)  -- Placeholder - reschedule feature not yet implemented
+            , onClick (OpenRescheduleModal booking)
             ]
             [ text "Reschedule" ]
         ]
@@ -802,3 +932,165 @@ validateBookingForm form =
                 []
     in
     aircraftErrors ++ studentErrors ++ dateErrors ++ endTimeErrors ++ locationErrors
+
+
+viewRescheduleModal : RescheduleModal -> Html Msg
+viewRescheduleModal modal =
+    div [ class "modal-overlay", onClick CloseRescheduleModal ]
+        [ div [ class "modal-content" ]
+            [ if modal.showConfirmation then
+                viewConfirmationDialog modal
+
+              else
+                div []
+                    [ div [ class "modal-header" ]
+                        [ h3 [] [ text "Reschedule Flight" ]
+                        , button
+                            [ class "modal-close"
+                            , onClick CloseRescheduleModal
+                            ]
+                            [ text "×" ]
+                        ]
+                    , div [ class "modal-body" ]
+                        [ div [ class "booking-details" ]
+                            [ p [] [ text ("Current time: " ++ formatDateWithTimezone modal.booking.scheduledDate) ]
+                            , p [] [ text ("Location: " ++ modal.booking.departureLocation.name) ]
+                            , p [] [ text ("Aircraft: " ++ modal.booking.aircraftType) ]
+                            ]
+                        , if modal.loading then
+                            div [ class "loading-spinner", attribute "data-testid" "reschedule-loading" ]
+                                [ text "Loading reschedule options..." ]
+
+                          else if List.isEmpty modal.options then
+                            div [ class "no-options" ]
+                                [ text "No reschedule options available" ]
+
+                          else
+                            div [ class "reschedule-options" ]
+                                (List.map (viewRescheduleOption modal.selectedOption) modal.options)
+                        ]
+                    ]
+            ]
+        ]
+
+
+viewRescheduleOption : Maybe RescheduleOption -> RescheduleOption -> Html Msg
+viewRescheduleOption selectedOption option =
+    div
+        [ class
+            (if Just option == selectedOption then
+                "reschedule-option selected"
+
+             else
+                "reschedule-option"
+            )
+        ]
+        [ div [ class "option-time", attribute "data-testid" "option-time" ]
+            [ text (formatDateWithTimezone option.dateTime) ]
+        , div [ class "option-reason", attribute "data-testid" "option-reason" ]
+            [ text option.reason ]
+        , div [ class "option-badges" ]
+            [ span
+                [ class
+                    (if option.instructorAvailable then
+                        "badge badge-available"
+
+                     else
+                        "badge badge-unavailable"
+                    )
+                , attribute "data-testid" "availability-badge"
+                ]
+                [ text
+                    (if option.instructorAvailable then
+                        "Available"
+
+                     else
+                        "Unavailable"
+                    )
+                ]
+            , span
+                [ class
+                    (if option.weatherScore >= 8.0 then
+                        "badge badge-weather-good"
+
+                     else if option.weatherScore >= 6.0 then
+                        "badge badge-weather-marginal"
+
+                     else
+                        "badge badge-weather-poor"
+                    )
+                , attribute "data-testid" "weather-indicator"
+                ]
+                [ text
+                    (if option.weatherScore >= 8.0 then
+                        "Weather OK"
+
+                     else if option.weatherScore >= 6.0 then
+                        "Marginal"
+
+                     else
+                        "Not Suitable"
+                    )
+                ]
+            ]
+        , button
+            [ class "button button-primary"
+            , attribute "data-testid" "select-option-btn"
+            , onClick (SelectRescheduleOption option)
+            , disabled (not option.instructorAvailable)
+            ]
+            [ text "Select" ]
+        ]
+
+
+viewConfirmationDialog : RescheduleModal -> Html Msg
+viewConfirmationDialog modal =
+    case modal.selectedOption of
+        Just option ->
+            div [ attribute "data-testid" "confirm-reschedule-modal" ]
+                [ div [ class "modal-header" ]
+                    [ h3 [] [ text "Confirm Reschedule" ]
+                    , button
+                        [ class "modal-close"
+                        , onClick CloseRescheduleModal
+                        ]
+                        [ text "×" ]
+                    ]
+                , div [ class "modal-body" ]
+                    [ p [] [ text "Are you sure you want to reschedule this flight?" ]
+                    , div [ class "change-summary" ]
+                        [ p []
+                            [ strong [] [ text "From: " ]
+                            , text (formatDateWithTimezone modal.booking.scheduledDate)
+                            ]
+                        , p []
+                            [ strong [] [ text "To: " ]
+                            , text (formatDateWithTimezone option.dateTime)
+                            ]
+                        ]
+                    , div [ class "modal-actions" ]
+                        [ button
+                            [ class "button button-secondary"
+                            , attribute "data-testid" "cancel-reschedule-btn"
+                            , onClick CancelRescheduleConfirmation
+                            , disabled modal.loading
+                            ]
+                            [ text "Cancel" ]
+                        , button
+                            [ class "button button-primary"
+                            , attribute "data-testid" "confirm-reschedule-btn"
+                            , onClick ConfirmReschedule
+                            , disabled modal.loading
+                            ]
+                            [ if modal.loading then
+                                text "Rescheduling..."
+
+                              else
+                                text "Confirm"
+                            ]
+                        ]
+                    ]
+                ]
+
+        Nothing ->
+            text ""

@@ -108,6 +108,42 @@ createStudent form toMsg =
         }
 
 
+rescheduleOptionDecoder : Decoder RescheduleOption
+rescheduleOptionDecoder =
+    Decode.map4 RescheduleOption
+        (Decode.field "date_time" Decode.string)
+        (Decode.field "reason" Decode.string)
+        (Decode.field "weather_score" Decode.float)
+        (Decode.field "instructor_available" Decode.bool)
+
+
+getRescheduleSuggestions : String -> (Result String (List RescheduleOption) -> msg) -> Cmd msg
+getRescheduleSuggestions bookingId toMsg =
+    Http.get
+        { url = apiUrl ("/bookings/" ++ bookingId ++ "/reschedule-suggestions")
+        , expect = expectJson toMsg (Decode.field "options" (Decode.list rescheduleOptionDecoder))
+        }
+
+
+rescheduleBooking : String -> String -> (Result String Booking -> msg) -> Cmd msg
+rescheduleBooking bookingId newDateTime toMsg =
+    let
+        body =
+            Encode.object
+                [ ( "new_scheduled_date", Encode.string newDateTime )
+                ]
+    in
+    Http.request
+        { method = "PATCH"
+        , headers = []
+        , url = apiUrl ("/bookings/" ++ bookingId ++ "/reschedule")
+        , body = Http.jsonBody body
+        , expect = expectJson toMsg bookingDecoder
+        , timeout = Nothing
+        , tracker = Nothing
+        }
+
+
 expectJson : (Result String a -> msg) -> Decoder a -> Http.Expect msg
 expectJson toMsg decoder =
     Http.expectStringResponse toMsg <|
