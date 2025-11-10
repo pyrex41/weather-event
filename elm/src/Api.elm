@@ -85,6 +85,19 @@ andMap =
     Decode.map2 (|>)
 
 
+csrfTokenDecoder : Decoder String
+csrfTokenDecoder =
+    Decode.field "token" Decode.string
+
+
+getCsrfToken : (Result String String -> msg) -> Cmd msg
+getCsrfToken toMsg =
+    Http.get
+        { url = apiUrl "/csrf-token"
+        , expect = expectJson toMsg csrfTokenDecoder
+        }
+
+
 getBookings : (Result String (List Booking) -> msg) -> Cmd msg
 getBookings toMsg =
     Http.get
@@ -101,8 +114,8 @@ getStudents toMsg =
         }
 
 
-createBooking : BookingForm -> (Result String Booking -> msg) -> Cmd msg
-createBooking form toMsg =
+createBooking : BookingForm -> Maybe String -> (Result String Booking -> msg) -> Cmd msg
+createBooking form csrfToken toMsg =
     let
         body =
             Encode.object
@@ -117,16 +130,28 @@ createBooking form toMsg =
                         ]
                   )
                 ]
+
+        headers =
+            case csrfToken of
+                Just token ->
+                    [ Http.header "X-CSRF-Token" token ]
+
+                Nothing ->
+                    []
     in
-    Http.post
-        { url = apiUrl "/bookings"
+    Http.request
+        { method = "POST"
+        , headers = headers
+        , url = apiUrl "/bookings"
         , body = Http.jsonBody body
         , expect = expectJson toMsg bookingDecoder
+        , timeout = Nothing
+        , tracker = Nothing
         }
 
 
-createStudent : StudentForm -> (Result String Student -> msg) -> Cmd msg
-createStudent form toMsg =
+createStudent : StudentForm -> Maybe String -> (Result String Student -> msg) -> Cmd msg
+createStudent form csrfToken toMsg =
     let
         body =
             Encode.object
@@ -135,11 +160,23 @@ createStudent form toMsg =
                 , ( "phone", Encode.string form.phone )
                 , ( "training_level", Encode.string form.trainingLevel )
                 ]
+
+        headers =
+            case csrfToken of
+                Just token ->
+                    [ Http.header "X-CSRF-Token" token ]
+
+                Nothing ->
+                    []
     in
-    Http.post
-        { url = apiUrl "/students"
+    Http.request
+        { method = "POST"
+        , headers = headers
+        , url = apiUrl "/students"
         , body = Http.jsonBody body
         , expect = expectJson toMsg studentDecoder
+        , timeout = Nothing
+        , tracker = Nothing
         }
 
 
@@ -160,17 +197,25 @@ getRescheduleSuggestions bookingId toMsg =
         }
 
 
-rescheduleBooking : String -> String -> (Result String Booking -> msg) -> Cmd msg
-rescheduleBooking bookingId newDateTime toMsg =
+rescheduleBooking : String -> String -> Maybe String -> (Result String Booking -> msg) -> Cmd msg
+rescheduleBooking bookingId newDateTime csrfToken toMsg =
     let
         body =
             Encode.object
                 [ ( "new_scheduled_date", Encode.string newDateTime )
                 ]
+
+        headers =
+            case csrfToken of
+                Just token ->
+                    [ Http.header "X-CSRF-Token" token ]
+
+                Nothing ->
+                    []
     in
     Http.request
         { method = "PATCH"
-        , headers = []
+        , headers = headers
         , url = apiUrl ("/bookings/" ++ bookingId ++ "/reschedule")
         , body = Http.jsonBody body
         , expect = expectJson toMsg bookingDecoder

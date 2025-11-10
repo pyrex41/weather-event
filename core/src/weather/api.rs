@@ -201,7 +201,7 @@ impl WeatherClient {
         );
 
         // Log without exposing API key
-        tracing::debug!("Fetching current weather for lat={}, lon={} from URL: {}", lat, lon, url.replace(&self.api_key, "[API_KEY]"));
+        tracing::debug!("Fetching current weather for lat={}, lon={}", lat, lon);
 
         let response = self.client
             .get(&url)
@@ -209,20 +209,14 @@ impl WeatherClient {
             .await
             .context("Failed to fetch current weather")?;
 
-        let status = response.status();
-        tracing::debug!("Weather API response status: {}", status);
-
-        if !status.is_success() {
-            let body = response.text().await.unwrap_or_else(|_| "Failed to read response body".to_string());
-            tracing::error!("Weather API error response body: {}", body);
-            anyhow::bail!("Weather API returned status: {} with body: {}", status, body);
+        if !response.status().is_success() {
+            anyhow::bail!("Weather API returned status: {}", response.status());
         }
 
-        let body = response.text().await.context("Failed to read response body")?;
-        tracing::debug!("Weather API response body: {}", body);
-
-        let data: OpenWeatherMapResponse = serde_json::from_str(&body)
-            .context("Failed to parse weather response JSON")?;
+        let data: OpenWeatherMapResponse = response
+            .json()
+            .await
+            .context("Failed to parse weather response")?;
 
         Ok(Self::convert_to_weather_data(data))
     }

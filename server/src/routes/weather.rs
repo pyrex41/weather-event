@@ -27,10 +27,6 @@ pub async fn get_weather(
 ) -> Result<Json<WeatherResponse>, ApiError> {
     tracing::info!("Weather route called with lat={}, lon={}", params.lat, params.lon);
 
-    // Debug: Check weather client configuration
-    tracing::debug!("Weather client base_url: {}", state.weather_client.base_url());
-    tracing::debug!("Weather client api_key length: {}", state.weather_client.api_key().len());
-
     let weather_data = state
         .weather_client
         .fetch_current_weather(params.lat, params.lon)

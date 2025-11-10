@@ -41,9 +41,11 @@ init _ =
       , newStudentForm = emptyStudentForm
       , websocketStatus = Connecting
       , rescheduleModal = Nothing
+      , csrfToken = Nothing
       }
     , Cmd.batch
-        [ Api.getBookings GotBookings
+        [ Api.getCsrfToken GotCsrfToken
+        , Api.getBookings GotBookings
         , Api.getStudents GotStudents
         ]
     )
@@ -76,6 +78,15 @@ update msg model =
         ChangePage page ->
             ( { model | page = page }, Cmd.none )
 
+        GotCsrfToken result ->
+            case result of
+                Ok token ->
+                    ( { model | csrfToken = Just token }, Cmd.none )
+
+                Err _ ->
+                    -- CSRF token fetch failed, but don't block the app
+                    ( model, Cmd.none )
+
         GotBookings result ->
             case result of
                 Ok bookings ->
@@ -102,7 +113,7 @@ update msg model =
                     , bookingFormErrors = []
                     , successMessage = Nothing
                   }
-                , Api.createBooking model.newBookingForm BookingCreated
+                , Api.createBooking model.newBookingForm model.csrfToken BookingCreated
                 )
             else
                 ( { model | bookingFormErrors = errors }, Cmd.none )
@@ -138,7 +149,7 @@ update msg model =
                     , studentFormErrors = []
                     , successMessage = Nothing
                   }
-                , Api.createStudent model.newStudentForm StudentCreated
+                , Api.createStudent model.newStudentForm model.csrfToken StudentCreated
                 )
             else
                 ( { model | studentFormErrors = errors }, Cmd.none )
@@ -370,7 +381,7 @@ update msg model =
                             ( { model
                                 | rescheduleModal = Just { modal | loading = True }
                               }
-                            , Api.rescheduleBooking modal.booking.id option.dateTime RescheduleCompleted
+                            , Api.rescheduleBooking modal.booking.id option.dateTime model.csrfToken RescheduleCompleted
                             )
 
                         Nothing ->

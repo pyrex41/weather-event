@@ -21,6 +21,7 @@ use tower_governor::{
 };
 
 mod auth;
+mod csrf;
 mod error;
 mod routes;
 mod scheduler;
@@ -161,7 +162,8 @@ async fn main() -> anyhow::Result<()> {
         CorsLayer::new()
             .allow_origin(origins)
             .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PATCH])
-            .allow_headers([axum::http::header::CONTENT_TYPE])
+            .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::HeaderName::from_static("x-csrf-token")])
+            .allow_credentials(true)
     } else {
         // Development fallback: restrictive default
         tracing::warn!("ALLOWED_ORIGINS not set, using default (http://localhost:8000)");
@@ -169,7 +171,8 @@ async fn main() -> anyhow::Result<()> {
         CorsLayer::new()
             .allow_origin(origins)
             .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PATCH])
-            .allow_headers([axum::http::header::CONTENT_TYPE])
+            .allow_headers([axum::http::header::CONTENT_TYPE, axum::http::HeaderName::from_static("x-csrf-token")])
+            .allow_credentials(true)
     };
 
     // Configure rate limiting
@@ -181,7 +184,7 @@ async fn main() -> anyhow::Result<()> {
             .unwrap(),
     );
 
-    // Build protected API routes with authentication and rate limiting
+    // Build protected API routes with authentication, CSRF protection, and rate limiting
     let api_routes = Router::new()
         .route("/alerts", get(routes::alerts::list_alerts))
         .route("/bookings", get(routes::bookings::list_bookings))
@@ -191,14 +194,12 @@ async fn main() -> anyhow::Result<()> {
         .route("/bookings/:id/reschedule", patch(routes::bookings::reschedule_booking))
         .route("/students", get(routes::students::list_students))
         .route("/students", post(routes::students::create_student))
+        .route("/weather", get(routes::weather::get_weather))
+        .route_layer(middleware::from_fn(csrf::csrf_middleware))
         .route_layer(middleware::from_fn(auth::auth_middleware))
         .layer(GovernorLayer {
             config: Box::leak(governor_conf),
         });
-
-    // Weather route without auth for debugging
-    let weather_route = Router::new()
-        .route("/weather", get(routes::weather::get_weather));
 
     // Build protected WebSocket route
     let ws_route = Router::new()
@@ -209,6 +210,8 @@ async fn main() -> anyhow::Result<()> {
     let app = Router::new()
         // Health check (public)
         .route("/health", get(health_check))
+        // CSRF token endpoint (public)
+        .route("/api/csrf-token", get(csrf::generate_csrf_token))
         // Protected API routes
         .nest("/api", api_routes)
         // Protected WebSocket

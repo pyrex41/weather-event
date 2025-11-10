@@ -83,6 +83,7 @@ type alias Model =
     , newStudentForm : StudentForm
     , websocketStatus : WebSocketStatus
     , rescheduleModal : Maybe RescheduleModal
+    , csrfToken : Maybe String
     }
 
 
@@ -128,6 +129,7 @@ type alias FormError =
 
 type Msg
     = ChangePage Page
+    | GotCsrfToken (Result String String)
     | GotBookings (Result String (List Booking))
     | GotStudents (Result String (List Student))
     | CreateBooking

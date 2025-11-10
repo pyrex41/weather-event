@@ -19,11 +19,11 @@ const mockWeatherData = {
       dt: Math.floor(Date.now() / 1000),
       sunrise: Math.floor(Date.now() / 1000) - 21600,
       sunset: Math.floor(Date.now() / 1000) + 21600,
-      temp: 72.5,
-      feels_like: 75.2,
+      temp: 295.65, // 72.5°F in Kelvin
+      feels_like: 298.35, // 75.2°F in Kelvin
       pressure: 1013,
       humidity: 65,
-      dew_point: 60.8,
+      dew_point: 289.15, // 60.8°F in Kelvin
       uvi: 6.2,
       clouds: 20,
       visibility: 10000,
@@ -128,11 +128,11 @@ const mockWeatherData = {
       dt: Math.floor(Date.now() / 1000),
       sunrise: Math.floor(Date.now() / 1000) - 21600,
       sunset: Math.floor(Date.now() / 1000) + 21600,
-      temp: 68.5,
-      feels_like: 70.2,
+      temp: 293.65, // 68.5°F in Kelvin
+      feels_like: 294.35, // 70.2°F in Kelvin
       pressure: 1015,
       humidity: 70,
-      dew_point: 58.8,
+      dew_point: 287.65, // 58.8°F in Kelvin
       uvi: 4.2,
       clouds: 30,
       visibility: 9000,
