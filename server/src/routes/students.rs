@@ -6,11 +6,15 @@ use axum::{
 };
 use core::models::{Student, TrainingLevel};
 use serde::{Deserialize, Serialize};
+use validator::Validate;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Validate)]
 pub struct CreateStudentRequest {
+    #[validate(length(min = 1, message = "Name cannot be empty"))]
     pub name: String,
+    #[validate(email(message = "Invalid email format"))]
     pub email: String,
+    #[validate(length(min = 1, message = "Phone cannot be empty"))]
     pub phone: String,
     pub training_level: String,
 }
@@ -53,6 +57,10 @@ pub async fn create_student(
     State(state): State<AppState>,
     Json(req): Json<CreateStudentRequest>,
 ) -> ApiResult<(StatusCode, Json<StudentResponse>)> {
+    // Validate input fields
+    req.validate()
+        .map_err(|e| crate::error::ApiError::validation_error(e.to_string()))?;
+
     // Validate training level
     let training_level = match req.training_level.as_str() {
         "STUDENT_PILOT" => TrainingLevel::StudentPilot,

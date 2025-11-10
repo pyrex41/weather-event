@@ -7,7 +7,6 @@ use axum::{
 use chrono::{DateTime, Utc};
 use core::ai::RescheduleOption;
 use core::models::{Booking, BookingStatus, Location, Student};
-use core::weather::api::WeatherClient;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Deserialize)]
@@ -165,16 +164,8 @@ pub async fn get_reschedule_suggestions(
     .await?
     .ok_or_else(|| crate::error::ApiError::not_found("Student"))?;
 
-    // Get weather API key from environment
-    let weather_api_key = std::env::var("WEATHER_API_KEY")
-        .unwrap_or_else(|_| {
-            tracing::warn!("WEATHER_API_KEY not set, weather data may be unavailable");
-            String::new()
-        });
-
-    // Fetch weather forecast
-    let weather_client = WeatherClient::new(weather_api_key, None);
-    let weather_forecast = weather_client
+    // Fetch weather forecast using client from AppState
+    let weather_forecast = state.weather_client
         .fetch_forecast(
             booking.departure_location.lat,
             booking.departure_location.lon
@@ -246,7 +237,7 @@ pub async fn reschedule_booking(
 
     // Log reschedule event
     let reschedule_event_id = uuid::Uuid::new_v4().to_string();
-    sqlx::query(
+    if let Err(e) = sqlx::query(
         "INSERT INTO reschedule_events (id, booking_id, old_date, new_date, reason, created_at)
          VALUES (?, ?, ?, ?, ?, datetime('now'))"
     )
@@ -256,13 +247,10 @@ pub async fn reschedule_booking(
     .bind(&req.new_scheduled_date)
     .bind("User requested reschedule")
     .execute(&state.db)
-    .await
-    .map_err(|e| {
-        tracing::warn!("Failed to log reschedule event: {}", e);
-        // Don't fail the request if logging fails
-        e
-    })
-    .ok();
+    .await {
+        tracing::error!("Failed to log reschedule event for booking {}: {}", id, e);
+        // Continue even if audit logging fails, but log the error
+    }
 
     // Notify via WebSocket
     let notification = serde_json::json!({

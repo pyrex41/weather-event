@@ -81,6 +81,9 @@ async fn check_all_flights(
     db: &SqlitePool,
     notification_tx: &NotificationChannel,
 ) -> anyhow::Result<ConflictSummary> {
+    use core::weather::WeatherClient;
+    use std::collections::HashMap;
+
     let now = Utc::now();
     let check_until = now + Duration::hours(48);
 
@@ -102,8 +105,44 @@ async fn check_all_flights(
 
     tracing::info!("Checking {} scheduled flights", total);
 
+    // Get weather client
+    let weather_client = match WeatherClient::from_env() {
+        Ok(client) => client,
+        Err(e) => {
+            tracing::error!("Failed to create weather client: {}", e);
+            return Ok(ConflictSummary {
+                total_checked: total,
+                conflicts_found: 0,
+            });
+        }
+    };
+
+    // Cache weather by location to avoid duplicate API calls
+    let mut location_cache: HashMap<String, core::weather::WeatherData> = HashMap::new();
+
     for booking in bookings {
-        match check_flight_safety(db, &booking, notification_tx).await {
+        // Check cache for weather data
+        let location_key = format!("{},{}", booking.departure_location.lat, booking.departure_location.lon);
+
+        let weather = if let Some(cached) = location_cache.get(&location_key) {
+            cached.clone()
+        } else {
+            match weather_client.fetch_current_weather(
+                booking.departure_location.lat,
+                booking.departure_location.lon,
+            ).await {
+                Ok(w) => {
+                    location_cache.insert(location_key.clone(), w.clone());
+                    w
+                }
+                Err(e) => {
+                    tracing::error!("Failed to fetch weather for booking {}: {}", booking.id, e);
+                    continue;
+                }
+            }
+        };
+
+        match check_flight_safety(db, &booking, notification_tx, &weather).await {
             Ok(true) => {
                 // Flight is safe, no action needed
             }
@@ -127,9 +166,10 @@ async fn check_flight_safety(
     db: &SqlitePool,
     booking: &Booking,
     notification_tx: &NotificationChannel,
+    weather: &core::weather::WeatherData,
 ) -> anyhow::Result<bool> {
     use core::models::Student;
-    use core::weather::{is_flight_safe, default_weather_minimums, WeatherClient};
+    use core::weather::{is_flight_safe, default_weather_minimums};
 
     // Fetch student
     let student = sqlx::query_as::<_, Student>(
@@ -138,17 +178,6 @@ async fn check_flight_safety(
     .bind(&booking.student_id)
     .fetch_one(db)
     .await?;
-
-    // Get weather client
-    let weather_client = WeatherClient::from_env()?;
-
-    // Fetch current weather for departure location
-    let weather = weather_client
-        .fetch_current_weather(
-            booking.departure_location.lat,
-            booking.departure_location.lon,
-        )
-        .await?;
 
     // Check safety
     let minimums = default_weather_minimums();

@@ -31,6 +31,9 @@ tokio-cron-scheduler = "0.10"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+# Rate limiting
+tower-governor = "0.3"
+
 # Environment variables
 dotenv = "0.15"
 

@@ -28,9 +28,14 @@ pub struct AiCache {
 
 impl AiCache {
     pub fn new() -> Self {
+        let ttl_hours = std::env::var("AI_CACHE_TTL_HOURS")
+            .ok()
+            .and_then(|s| s.parse().ok())
+            .unwrap_or(6); // Default to 6 hours
+
         Self {
             cache: Arc::new(RwLock::new(HashMap::new())),
-            ttl_hours: 6,
+            ttl_hours,
         }
     }
 

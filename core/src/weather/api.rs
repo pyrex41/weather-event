@@ -98,6 +98,9 @@ impl WeatherClient {
             self.base_url, lat, lon, self.api_key
         );
 
+        // Log without exposing API key
+        tracing::debug!("Fetching current weather for lat={}, lon={}", lat, lon);
+
         let response = self.client
             .get(&url)
             .send()
@@ -121,6 +124,9 @@ impl WeatherClient {
             "{}/forecast?lat={}&lon={}&appid={}&cnt=56",
             self.base_url, lat, lon, self.api_key
         );
+
+        // Log without exposing API key
+        tracing::debug!("Fetching weather forecast for lat={}, lon={}", lat, lon);
 
         let response = self.client
             .get(&url)

@@ -141,8 +141,10 @@ impl From<uuid::Error> for ApiError {
 
 impl From<anyhow::Error> for ApiError {
     fn from(err: anyhow::Error) -> Self {
-        tracing::error!("Anyhow error: {:?}", err);
-        ApiError::internal_error(format!("Operation failed: {}", err))
+        // Log detailed error for server-side debugging
+        tracing::error!("Internal error occurred: {:?}", err);
+        // Return generic message to client to avoid information disclosure
+        ApiError::internal_error("An unexpected internal error occurred")
     }
 }
 
