@@ -215,6 +215,35 @@ update msg model =
             in
             ( { model | newStudentForm = newForm }, Cmd.none )
 
+        ValidateBookingField field ->
+            let
+                fieldErrors = validateBookingFormField field model.newBookingForm
+
+                -- Remove existing errors for this field and related fields
+                fieldsToRemove = case field of
+                    ScheduledDateField -> ["start-time", "end-time"]
+                    EndTimeField -> ["end-time"]
+                    _ -> [getFieldName field]
+
+                otherErrors = List.filter
+                    (\err -> not (List.member err.field fieldsToRemove))
+                    model.bookingFormErrors
+
+                newErrors = otherErrors ++ fieldErrors
+            in
+            ( { model | bookingFormErrors = newErrors }, Cmd.none )
+
+        ValidateStudentField field ->
+            let
+                fieldErrors = validateStudentFormField field model.newStudentForm
+                fieldName = getStudentFieldName field
+
+                -- Remove existing errors for this field
+                otherErrors = List.filter (\err -> err.field /= fieldName) model.studentFormErrors
+                newErrors = otherErrors ++ fieldErrors
+            in
+            ( { model | studentFormErrors = newErrors }, Cmd.none )
+
         WebSocketMessageReceived message ->
             case Decode.decodeString Api.alertDecoder message of
                 Ok alert ->
@@ -642,9 +671,10 @@ viewBookingForm model =
           else
             text ""
         , div [ class "form-group" ]
-            [ label [] [ text "Aircraft Type" ]
+            [ label [] [ text "Aircraft Type *" ]
             , select
                 [ onInput (UpdateBookingForm AircraftTypeField)
+                , onBlur (ValidateBookingField AircraftTypeField)
                 , value model.newBookingForm.aircraftType
                 , attribute "data-testid" "booking-aircraft"
                 ]
@@ -656,9 +686,10 @@ viewBookingForm model =
             , viewFieldError "aircraft-type" model.bookingFormErrors
             ]
         , div [ class "form-group" ]
-            [ label [] [ text "Student" ]
+            [ label [] [ text "Student *" ]
             , select
                 [ onInput (UpdateBookingForm StudentIdField)
+                , onBlur (ValidateBookingField StudentIdField)
                 , value model.newBookingForm.studentId
                 ]
                 (option [ value "" ] [ text "Select a student" ]
@@ -669,36 +700,39 @@ viewBookingForm model =
             , viewFieldError "student" model.bookingFormErrors
             ]
         , div [ class "form-group" ]
-            [ label [] [ text "Scheduled Date (YYYY-MM-DDTHH:MM:SSZ)" ]
+            [ label [] [ text "Scheduled Date (YYYY-MM-DDTHH:MM:SSZ) *" ]
             , input
                 [ type_ "text"
                 , placeholder "2024-01-15T14:00:00Z"
                 , value model.newBookingForm.scheduledDate
                 , onInput (UpdateBookingForm ScheduledDateField)
+                , onBlur (ValidateBookingField ScheduledDateField)
                 , attribute "data-testid" "booking-start-time"
                 ]
                 []
             , viewFieldError "start-time" model.bookingFormErrors
             ]
         , div [ class "form-group" ]
-            [ label [] [ text "End Time (YYYY-MM-DDTHH:MM:SSZ)" ]
+            [ label [] [ text "End Time (YYYY-MM-DDTHH:MM:SSZ) *" ]
             , input
                 [ type_ "text"
                 , placeholder "2024-01-15T16:00:00Z"
                 , value model.newBookingForm.endTime
                 , onInput (UpdateBookingForm EndTimeField)
+                , onBlur (ValidateBookingField EndTimeField)
                 , attribute "data-testid" "booking-end-time"
                 ]
                 []
             , viewFieldError "end-time" model.bookingFormErrors
             ]
         , div [ class "form-group" ]
-            [ label [] [ text "Location Name" ]
+            [ label [] [ text "Location Name *" ]
             , input
                 [ type_ "text"
                 , placeholder "KTOA"
                 , value model.newBookingForm.locationName
                 , onInput (UpdateBookingForm LocationNameField)
+                , onBlur (ValidateBookingField LocationNameField)
                 , attribute "data-testid" "booking-location"
                 ]
                 []
@@ -712,8 +746,10 @@ viewBookingForm model =
                     , placeholder "33.8113"
                     , value model.newBookingForm.locationLat
                     , onInput (UpdateBookingForm LocationLatField)
+                    , onBlur (ValidateBookingField LocationLatField)
                     ]
                     []
+                , viewFieldError "location-lat" model.bookingFormErrors
                 ]
             , div [ class "form-group" ]
                 [ label [] [ text "Longitude" ]
@@ -722,14 +758,16 @@ viewBookingForm model =
                     , placeholder "-118.1515"
                     , value model.newBookingForm.locationLon
                     , onInput (UpdateBookingForm LocationLonField)
+                    , onBlur (ValidateBookingField LocationLonField)
                     ]
                     []
+                , viewFieldError "location-lon" model.bookingFormErrors
                 ]
             ]
         , button
             [ class "button button-primary"
             , onClick CreateBooking
-            , disabled model.formSubmitting
+            , disabled (model.formSubmitting || not (List.isEmpty model.bookingFormErrors))
             , attribute "data-testid" "submit-booking-btn"
             ]
             [ text
@@ -805,45 +843,49 @@ viewStudentForm model =
           else
             text ""
          , div [ class "form-group" ]
-             [ label [] [ text "Name" ]
+             [ label [] [ text "Name *" ]
              , input
                  [ type_ "text"
                  , placeholder "John Doe"
                  , value model.newStudentForm.name
                  , onInput (UpdateStudentForm NameField)
+                 , onBlur (ValidateStudentField NameField)
                  , attribute "data-testid" "student-name"
                  ]
                  []
              , viewFieldError "name" model.studentFormErrors
              ]
          , div [ class "form-group" ]
-             [ label [] [ text "Email" ]
+             [ label [] [ text "Email *" ]
              , input
                  [ type_ "email"
                  , placeholder "john@example.com"
                  , value model.newStudentForm.email
                  , onInput (UpdateStudentForm EmailField)
+                 , onBlur (ValidateStudentField EmailField)
                  , attribute "data-testid" "student-email"
                  ]
                  []
              , viewFieldError "email" model.studentFormErrors
              ]
          , div [ class "form-group" ]
-             [ label [] [ text "Phone" ]
+             [ label [] [ text "Phone *" ]
              , input
                  [ type_ "tel"
                  , placeholder "(555) 123-4567"
                  , value model.newStudentForm.phone
                  , onInput (UpdateStudentForm PhoneField)
+                 , onBlur (ValidateStudentField PhoneField)
                  , attribute "data-testid" "student-phone"
                  ]
                  []
              , viewFieldError "phone" model.studentFormErrors
              ]
         , div [ class "form-group" ]
-            [ label [] [ text "Training Level" ]
+            [ label [] [ text "Training Level *" ]
             , select
                 [ onInput (UpdateStudentForm TrainingLevelField)
+                , onBlur (ValidateStudentField TrainingLevelField)
                 , value model.newStudentForm.trainingLevel
                 , attribute "data-testid" "student-training-level"
                 ]
@@ -857,7 +899,7 @@ viewStudentForm model =
         , button
             [ class "button button-primary"
             , onClick CreateStudent
-            , disabled model.formSubmitting
+            , disabled (model.formSubmitting || not (List.isEmpty model.studentFormErrors))
             , attribute "data-testid" "submit-student-btn"
             ]
             [ text
@@ -1070,6 +1112,140 @@ validateBookingForm form =
                 []
     in
     aircraftErrors ++ studentErrors ++ dateErrors ++ endTimeErrors ++ locationErrors
+
+
+-- Helper functions to get field names
+getFieldName : BookingFormField -> String
+getFieldName field =
+    case field of
+        AircraftTypeField -> "aircraft-type"
+        StudentIdField -> "student"
+        ScheduledDateField -> "start-time"
+        EndTimeField -> "end-time"
+        LocationNameField -> "location"
+        LocationLatField -> "location-lat"
+        LocationLonField -> "location-lon"
+
+
+getStudentFieldName : StudentFormField -> String
+getStudentFieldName field =
+    case field of
+        NameField -> "name"
+        EmailField -> "email"
+        PhoneField -> "phone"
+        TrainingLevelField -> "training-level"
+
+
+-- Individual field validation for real-time feedback
+validateBookingFormField : BookingFormField -> BookingForm -> List FormError
+validateBookingFormField field form =
+    case field of
+        AircraftTypeField ->
+            if String.isEmpty form.aircraftType then
+                [ { field = "aircraft-type", message = "Aircraft type is required" } ]
+            else
+                []
+
+        StudentIdField ->
+            if String.isEmpty form.studentId then
+                [ { field = "student", message = "Student selection is required" } ]
+            else
+                []
+
+        ScheduledDateField ->
+            let
+                dateErrors =
+                    if String.isEmpty (String.trim form.scheduledDate) then
+                        [ { field = "start-time", message = "Start time is required" } ]
+                    else
+                        []
+
+                -- Also validate endTime when scheduledDate changes (cross-field)
+                endTimeErrors =
+                    if not (String.isEmpty (String.trim form.scheduledDate))
+                        && not (String.isEmpty (String.trim form.endTime))
+                        && form.endTime < form.scheduledDate then
+                        [ { field = "end-time", message = "End time must be after start time" } ]
+                    else
+                        []
+            in
+            dateErrors ++ endTimeErrors
+
+        EndTimeField ->
+            if String.isEmpty (String.trim form.endTime) then
+                [ { field = "end-time", message = "End time is required" } ]
+            else if not (String.isEmpty (String.trim form.scheduledDate)) && form.endTime < form.scheduledDate then
+                [ { field = "end-time", message = "End time must be after start time" } ]
+            else
+                []
+
+        LocationNameField ->
+            if String.isEmpty (String.trim form.locationName) then
+                [ { field = "location", message = "Location is required" } ]
+            else
+                []
+
+        LocationLatField ->
+            if not (String.isEmpty (String.trim form.locationLat)) then
+                case String.toFloat form.locationLat of
+                    Nothing ->
+                        [ { field = "location-lat", message = "Latitude must be a valid number" } ]
+                    Just lat ->
+                        if lat < -90 || lat > 90 then
+                            [ { field = "location-lat", message = "Latitude must be between -90 and 90" } ]
+                        else
+                            []
+            else
+                []
+
+        LocationLonField ->
+            if not (String.isEmpty (String.trim form.locationLon)) then
+                case String.toFloat form.locationLon of
+                    Nothing ->
+                        [ { field = "location-lon", message = "Longitude must be a valid number" } ]
+                    Just lon ->
+                        if lon < -180 || lon > 180 then
+                            [ { field = "location-lon", message = "Longitude must be between -180 and 180" } ]
+                        else
+                            []
+            else
+                []
+
+
+validateStudentFormField : StudentFormField -> StudentForm -> List FormError
+validateStudentFormField field form =
+    case field of
+        NameField ->
+            if String.isEmpty (String.trim form.name) then
+                [ { field = "name", message = "Name is required" } ]
+            else if String.length (String.trim form.name) < 2 then
+                [ { field = "name", message = "Name must be at least 2 characters" } ]
+            else if String.length (String.trim form.name) > 100 then
+                [ { field = "name", message = "Name must be at most 100 characters" } ]
+            else
+                []
+
+        EmailField ->
+            if String.isEmpty (String.trim form.email) then
+                [ { field = "email", message = "Email is required" } ]
+            else if not (String.contains "@" form.email && String.contains "." form.email) then
+                [ { field = "email", message = "Please enter a valid email address" } ]
+            else
+                []
+
+        PhoneField ->
+            if String.isEmpty (String.trim form.phone) then
+                [ { field = "phone", message = "Phone is required" } ]
+            else if String.length (String.trim form.phone) < 10 then
+                [ { field = "phone", message = "Please enter a valid phone number (at least 10 digits)" } ]
+            else
+                []
+
+        TrainingLevelField ->
+            if String.isEmpty form.trainingLevel then
+                [ { field = "training-level", message = "Training level is required" } ]
+            else
+                []
 
 
 viewRescheduleModal : RescheduleModal -> Html Msg

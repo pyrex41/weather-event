@@ -136,6 +136,8 @@ type Msg
     | StudentCreated (Result String Student)
     | UpdateBookingForm BookingFormField String
     | UpdateStudentForm StudentFormField String
+    | ValidateBookingField BookingFormField
+    | ValidateStudentField StudentFormField
     | WebSocketMessageReceived String
     | WebSocketConnected
     | WebSocketDisconnected
