@@ -6,6 +6,7 @@ import Html exposing (..)
 import Html.Attributes exposing (..)
 import Html.Events exposing (..)
 import Json.Decode as Decode
+import Task
 import Time
 import Types exposing (..)
 import WebSocket
@@ -33,6 +34,7 @@ init _ =
       , formSubmitting = False
       , error = Nothing
       , successMessage = Nothing
+      , successMessageTime = Nothing
       , bookingFormErrors = []
       , studentFormErrors = []
       , newBookingForm = emptyBookingForm
@@ -77,18 +79,18 @@ update msg model =
         GotBookings result ->
             case result of
                 Ok bookings ->
-                    ( { model | bookings = bookings, loading = False }, Cmd.none )
+                    ( { model | bookings = bookings, formSubmitting = False }, Cmd.none )
 
                 Err err ->
-                    ( { model | error = Just err, loading = False }, Cmd.none )
+                    ( { model | error = Just err, formSubmitting = False }, Cmd.none )
 
         GotStudents result ->
             case result of
                 Ok students ->
-                    ( { model | students = students, loading = False }, Cmd.none )
+                    ( { model | students = students, formSubmitting = False }, Cmd.none )
 
                 Err err ->
-                    ( { model | error = Just err, loading = False }, Cmd.none )
+                    ( { model | error = Just err, formSubmitting = False }, Cmd.none )
 
         CreateBooking ->
             let
@@ -96,7 +98,7 @@ update msg model =
             in
             if List.isEmpty errors then
                 ( { model
-                    | loading = True
+                    | formSubmitting = True
                     , bookingFormErrors = []
                     , successMessage = Nothing
                   }
@@ -111,17 +113,16 @@ update msg model =
                     ( { model
                         | bookings = booking :: model.bookings
                         , newBookingForm = emptyBookingForm
-                        , loading = False
-                        , successMessage = Just "Booking created successfully"
+                        , formSubmitting = False
                         , bookingFormErrors = []
                       }
-                    , Cmd.none
+                    , Task.perform (SetSuccessMessage "Booking created successfully") Time.now
                     )
 
                 Err err ->
                     ( { model
                         | error = Just err
-                        , loading = False
+                        , formSubmitting = False
                         , bookingFormErrors = [ { field = "general", message = err } ]
                       }
                     , Cmd.none
@@ -133,7 +134,7 @@ update msg model =
             in
             if List.isEmpty errors then
                 ( { model
-                    | loading = True
+                    | formSubmitting = True
                     , studentFormErrors = []
                     , successMessage = Nothing
                   }
@@ -148,17 +149,16 @@ update msg model =
                     ( { model
                         | students = student :: model.students
                         , newStudentForm = emptyStudentForm
-                        , loading = False
-                        , successMessage = Just "Student created successfully"
+                        , formSubmitting = False
                         , studentFormErrors = []
                       }
-                    , Cmd.none
+                    , Task.perform (SetSuccessMessage "Student created successfully") Time.now
                     )
 
                 Err err ->
                     ( { model
                         | error = Just err
-                        , loading = False
+                        , formSubmitting = False
                         , studentFormErrors = [ { field = "general", message = err } ]
                       }
                     , Cmd.none
@@ -235,10 +235,25 @@ update msg model =
             )
 
         ClearSuccessMessage ->
-            ( { model | successMessage = Nothing }, Cmd.none )
+            ( { model | successMessage = Nothing, successMessageTime = Nothing }, Cmd.none )
 
-        Tick _ ->
-            ( model, Cmd.none )
+        SetSuccessMessage message time ->
+            ( { model | successMessage = Just message, successMessageTime = Just time }, Cmd.none )
+
+        Tick currentTime ->
+            case model.successMessageTime of
+                Just messageTime ->
+                    let
+                        elapsed =
+                            Time.posixToMillis currentTime - Time.posixToMillis messageTime
+                    in
+                    if elapsed > 5000 then
+                        ( { model | successMessage = Nothing, successMessageTime = Nothing }, Cmd.none )
+                    else
+                        ( model, Cmd.none )
+
+                Nothing ->
+                    ( model, Cmd.none )
 
         OpenRescheduleModal booking ->
             ( { model
@@ -350,9 +365,8 @@ update msg model =
                                 )
                                 model.bookings
                         , rescheduleModal = Nothing
-                        , successMessage = Just "Booking rescheduled successfully"
                       }
-                    , Cmd.none
+                    , Task.perform (SetSuccessMessage "Booking rescheduled successfully") Time.now
                     )
 
                 Err err ->
@@ -536,6 +550,14 @@ formatTimestamp timestamp =
     String.left 19 (String.replace "T" " " timestamp)
 
 
+viewLoadingSpinner : String -> Html Msg
+viewLoadingSpinner message =
+    div [ class "loading-spinner", attribute "data-testid" "loading-spinner" ]
+        [ div [ class "spinner" ] []
+        , text message
+        ]
+
+
 viewContent : Model -> Html Msg
 viewContent model =
     div [ class "content" ]
@@ -615,8 +637,8 @@ viewBookingForm : Model -> Html Msg
 viewBookingForm model =
     div [ class "form" ]
         [ viewFormErrors model.bookingFormErrors
-        , if model.loading then
-            div [ class "loading-spinner", attribute "data-testid" "loading-spinner" ] [ text "Loading..." ]
+        , if model.formSubmitting then
+            viewLoadingSpinner "Creating booking..."
           else
             text ""
         , div [ class "form-group" ]
@@ -707,11 +729,11 @@ viewBookingForm model =
         , button
             [ class "button button-primary"
             , onClick CreateBooking
-            , disabled model.loading
+            , disabled model.formSubmitting
             , attribute "data-testid" "submit-booking-btn"
             ]
             [ text
-                (if model.loading then
+                (if model.formSubmitting then
                     "Creating..."
 
                  else
@@ -778,8 +800,8 @@ viewStudentForm : Model -> Html Msg
 viewStudentForm model =
     div [ class "form" ]
         [ viewFormErrors model.studentFormErrors
-        , if model.loading then
-            div [ class "loading-spinner", attribute "data-testid" "loading-spinner" ] [ text "Loading..." ]
+        , if model.formSubmitting then
+            viewLoadingSpinner "Creating student..."
           else
             text ""
          , div [ class "form-group" ]
@@ -835,11 +857,11 @@ viewStudentForm model =
         , button
             [ class "button button-primary"
             , onClick CreateStudent
-            , disabled model.loading
+            , disabled model.formSubmitting
             , attribute "data-testid" "submit-student-btn"
             ]
             [ text
-                (if model.loading then
+                (if model.formSubmitting then
                     "Creating..."
 
                  else
@@ -1074,8 +1096,8 @@ viewRescheduleModal modal =
                             , p [] [ text ("Aircraft: " ++ modal.booking.aircraftType) ]
                             ]
                         , if modal.loading then
-                            div [ class "loading-spinner", attribute "data-testid" "reschedule-loading" ]
-                                [ text "Loading reschedule options..." ]
+                            div [ attribute "data-testid" "reschedule-loading" ]
+                                [ viewLoadingSpinner "Loading reschedule options..." ]
 
                           else if List.isEmpty modal.options then
                             div [ class "no-options" ]

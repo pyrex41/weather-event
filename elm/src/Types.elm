@@ -76,6 +76,7 @@ type alias Model =
     , formSubmitting : Bool
     , error : Maybe String
     , successMessage : Maybe String
+    , successMessageTime : Maybe Time.Posix
     , bookingFormErrors : List FormError
     , studentFormErrors : List FormError
     , newBookingForm : BookingForm
@@ -140,6 +141,7 @@ type Msg
     | WebSocketDisconnected
     | DismissAlert String  -- Alert ID
     | ClearSuccessMessage
+    | SetSuccessMessage String Time.Posix
     | Tick Time.Posix
     | OpenRescheduleModal Booking
     | CloseRescheduleModal

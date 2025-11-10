@@ -666,7 +666,7 @@
   "next": {
     "tasks": [
       {
-        "id": 1,
+        "id": "1",
         "title": "Enhance WebSocket Infrastructure",
         "description": "Implement robust WebSocket connection management with automatic reconnection, status indicators, and resilient message handling.",
         "details": "In the Elm frontend, extend the WebSocket module to handle connection states (Connecting, Connected, Disconnected), implement exponential backoff reconnection (starting at 1s, doubling up to 16s, max 10 attempts), and add a message queue for buffering during disconnects (up to 50 messages). On the Rust backend, update the WebSocket handler to include ping/pong heartbeats every 30s, detect disconnections after 60s without pong, and manage client connections. Use tokio for async tasks. Ensure the infrastructure supports broadcasting to all clients and handles reconnections seamlessly.",
@@ -728,7 +728,7 @@
         "expansionPrompt": "Break this task into subtasks covering Elm frontend WebSocket module extensions (connection states, reconnection logic, message queuing), Rust backend handler updates (ping/pong heartbeats, disconnection detection, client management), integration testing, and E2E testing for resilience."
       },
       {
-        "id": 2,
+        "id": "2",
         "title": "Implement Connection Status Indicator",
         "description": "Add a visual WebSocket connection status indicator to inform users of real-time update availability.",
         "details": "In Elm, add a `[data-testid=\"ws-status\"]` element to the UI, typically in the header or footer, that displays the current WebSocketStatus (Connecting: yellow dot with 'Connecting...', Connected: green dot with '● Live', Disconnected: red dot with '○ Disconnected'). Update the model to track websocketStatus and reflect changes in the view. Ensure the indicator persists across page navigation and updates reactively based on WebSocket events.",
@@ -804,7 +804,7 @@
         "expansionPrompt": "No expansion needed as this is a straightforward UI component with reactive updates."
       },
       {
-        "id": 3,
+        "id": "3",
         "title": "Develop Comprehensive Error Handling System",
         "description": "Implement user-friendly error messages, recovery options, and handling for all error scenarios including API failures, timeouts, and validation.",
         "details": "In Elm, create a centralized error handling module that maps HTTP errors to user-friendly messages (e.g., 400: 'Invalid request. Please check your input.'). Add `[data-testid=\"error-message\"]` for displaying errors at the top of content, with auto-dismiss after 10s. Handle network timeouts (30s), rate limiting (429), and malformed responses. On the Rust backend, standardize error responses with ErrorResponse struct, implement rate limiting middleware (100 req/min per IP using Redis), and ensure all endpoints return consistent error formats. Add retry logic for transient errors.",
@@ -839,7 +839,7 @@
         "expansionPrompt": "Divide into subtasks for Elm error handling module (message mapping, UI display, auto-dismiss) and Rust backend error standardization (middleware, rate limiting, retry logic)."
       },
       {
-        "id": 4,
+        "id": "4",
         "title": "Add Loading States and User Feedback Components",
         "description": "Provide visual feedback during asynchronous operations with loading indicators, disabled buttons, and success messages.",
         "details": "In Elm, integrate loading spinners (`[data-testid=\"loading-spinner\"]` inline next to buttons) and disable submit buttons during processing, changing text (e.g., 'Create Student' to 'Creating...'). Add success messages (`[data-testid=\"success-message\"]` with green styling, auto-dismiss after 5s). Implement optimistic updates for lists (add items immediately, revert on failure). For page-level loading, use skeleton screens. Ensure all async operations (form submissions, data fetches) show appropriate feedback.",
@@ -848,7 +848,7 @@
         "dependencies": [
           "3"
         ],
-        "status": "pending",
+        "status": "done",
         "subtasks": [
           {
             "id": 1,
@@ -911,10 +911,11 @@
         ],
         "complexity": 5,
         "recommendedSubtasks": 0,
-        "expansionPrompt": "No expansion needed as this is UI-focused with optimistic updates and spinners."
+        "expansionPrompt": "No expansion needed as this is UI-focused with optimistic updates and spinners.",
+        "updatedAt": "2025-11-10T20:10:25.186Z"
       },
       {
-        "id": 5,
+        "id": "5",
         "title": "Enhance Form Validation",
         "description": "Implement comprehensive client-side and server-side validation with real-time feedback and actionable error messages.",
         "details": "In Elm, add real-time validation on field blur for forms (Student: name min 2 chars, email valid format; Booking: start/end time validation, airport code regex). Display errors below fields (`[data-testid=\"error-{fieldname}\"]`). Disable submit buttons on validation errors. On the Rust backend, use validation crates (e.g., validator) for server-side checks, including aircraft availability and instructor checks. Ensure validation prevents invalid submissions and provides specific messages.",
@@ -951,7 +952,7 @@
         "expansionPrompt": "Split into subtasks for Elm client-side validation (real-time feedback, field errors) and Rust server-side validation (using crates, business logic checks)."
       },
       {
-        "id": 6,
+        "id": "6",
         "title": "Implement Weather Alert Banner and Display Logic",
         "description": "Create a component to display real-time weather alerts with severity-based styling and dismissal functionality.",
         "details": "In Elm, build WeatherAlertBanner.elm to show alerts as stacked banners at the top (`[data-testid=\"weather-alert\"]`), with severity colors (Severe: red, etc.), and dismiss buttons. Handle multiple alerts (max 5, auto-dismiss oldest). Update dashboard stats (`[data-testid=\"stat-alerts\"]`) with active count. Persist alerts in model across navigation. Integrate with WebSocket to receive and display alerts in the specified JSON format.",
@@ -1029,7 +1030,7 @@
         "expansionPrompt": "No expansion needed as this is a single Elm component with WebSocket integration."
       },
       {
-        "id": 7,
+        "id": "7",
         "title": "Build Backend Weather Monitoring Service",
         "description": "Develop a background service to monitor weather conditions and generate alerts for affected bookings.",
         "details": "In Rust, create WeatherMonitorService as an async task that runs every 5 minutes, fetching weather data from OpenWeatherMap API for upcoming flight locations (next 24h). Analyze for dangerous conditions (wind > threshold, visibility < threshold) and generate WeatherAlert structs. Save alerts to database, broadcast via WebSocket to clients. Include logic to detect affected bookings and handle alert expiration.",
@@ -1068,7 +1069,7 @@
         "expansionPrompt": "Break into subtasks for weather data fetching and analysis logic, and alert generation/broadcasting with database integration."
       },
       {
-        "id": 8,
+        "id": "8",
         "title": "Create Reschedule Modal UI with Options Display",
         "description": "Build the UI for the reschedule modal, displaying AI-suggested options with availability and weather indicators.",
         "details": "In Elm, implement RescheduleModal.elm triggered by `[data-testid=\"reschedule-btn\"]`. Display original booking details, 3 options as cards with `[data-testid=\"option-time\"]`, reasoning, availability badge (green/red), weather indicator (green/yellow/red), and select buttons (disabled for unavailable). Use the defined Elm types (RescheduleOption, AvailabilityStatus, WeatherStatus). Handle loading states during API calls.",
@@ -1147,7 +1148,7 @@
         "updatedAt": "2025-11-10T18:12:22.349Z"
       },
       {
-        "id": 9,
+        "id": "9",
         "title": "Integrate OpenAI API for AI-Powered Suggestions",
         "description": "Connect to OpenAI API to generate intelligent reschedule options based on booking details and constraints.",
         "details": "In Rust, implement a service to call OpenAI API with the specified prompt template, passing current booking data (datetime, student level, aircraft, location), reason, weather forecast, and instructor availability. Parse response to extract 3 reschedule options with reasoning. Cache suggestions to manage costs. Handle API errors gracefully.",
@@ -1185,7 +1186,7 @@
         "updatedAt": "2025-11-10T18:12:27.201Z"
       },
       {
-        "id": 10,
+        "id": "10",
         "title": "Implement Backend Reschedule API and Business Logic",
         "description": "Develop the PATCH `/api/bookings/{id}/reschedule` endpoint with validation, updates, and notifications.",
         "details": "In Rust, create the endpoint to handle RescheduleRequest, validate instructor availability and weather suitability, update booking record, log to booking_reschedule_history table (via SQL migration), and send notifications (WebSocket, email). Ensure atomic operations and error handling. Integrate with existing booking logic.",
@@ -1227,14 +1228,12 @@
     ],
     "metadata": {
       "version": "1.0.0",
-      "lastModified": "2025-11-10T18:12:32.310Z",
+      "lastModified": "2025-11-10T20:10:25.187Z",
       "taskCount": 10,
-      "completedCount": 3,
+      "completedCount": 4,
       "tags": [
         "next"
-      ],
-      "created": "2025-11-10T18:12:39.672Z",
-      "description": "Tasks for next context"
+      ]
     }
   }
 }
