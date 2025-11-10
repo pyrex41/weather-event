@@ -13,10 +13,12 @@ pub async fn start_weather_monitor(
 
     let scheduler = JobScheduler::new().await?;
 
-    // Run every hour (at minute 0)
-    let job = Job::new_async("0 0 * * * *", move |_uuid, _lock| {
-        let db = db.clone();
-        let tx = notification_tx.clone();
+    // Job 1: Run every hour (at minute 0) - Conflict detection
+    let hourly_db = db.clone();
+    let hourly_tx = notification_tx.clone();
+    let hourly_job = Job::new_async("0 0 * * * *", move |_uuid, _lock| {
+        let db = hourly_db.clone();
+        let tx = hourly_tx.clone();
 
         Box::pin(async move {
             tracing::info!("Running hourly weather check...");
@@ -36,10 +38,32 @@ pub async fn start_weather_monitor(
         })
     })?;
 
-    scheduler.add(job).await?;
+    // Job 2: Run every 5 minutes - Weather alert generation
+    let alert_db = db.clone();
+    let alert_tx = notification_tx.clone();
+    let alert_job = Job::new_async("0 */5 * * * *", move |_uuid, _lock| {
+        let db = alert_db.clone();
+        let tx = alert_tx.clone();
+
+        Box::pin(async move {
+            tracing::info!("Running 5-minute weather alert check...");
+
+            match generate_weather_alerts(&db, &tx).await {
+                Ok(alert_count) => {
+                    tracing::info!("Generated {} weather alerts", alert_count);
+                }
+                Err(e) => {
+                    tracing::error!("Weather alert generation failed: {}", e);
+                }
+            }
+        })
+    })?;
+
+    scheduler.add(hourly_job).await?;
+    scheduler.add(alert_job).await?;
     scheduler.start().await?;
 
-    tracing::info!("Weather monitoring scheduler started");
+    tracing::info!("Weather monitoring scheduler started (hourly conflicts + 5-minute alerts)");
 
     // Keep scheduler running
     tokio::time::sleep(tokio::time::Duration::from_secs(u64::MAX)).await;
@@ -185,4 +209,237 @@ async fn check_flight_safety(
     }
 
     Ok(true)
+}
+
+/// Generate weather alerts for upcoming bookings
+/// Runs every 5 minutes and sends alerts based on weather severity
+async fn generate_weather_alerts(
+    db: &SqlitePool,
+    notification_tx: &NotificationChannel,
+) -> anyhow::Result<usize> {
+    use core::models::Student;
+    use core::weather::{WeatherClient, calculate_weather_score};
+
+    let now = Utc::now();
+    let check_until = now + Duration::hours(24);
+
+    // Query upcoming bookings in next 24 hours
+    let bookings = sqlx::query_as::<_, Booking>(
+        "SELECT id, student_id, scheduled_date, departure_location, status
+         FROM bookings
+         WHERE status IN ('SCHEDULED', 'RESCHEDULED')
+         AND scheduled_date BETWEEN ? AND ?
+         ORDER BY scheduled_date"
+    )
+    .bind(now)
+    .bind(check_until)
+    .fetch_all(db)
+    .await?;
+
+    if bookings.is_empty() {
+        tracing::debug!("No upcoming bookings to check for alerts");
+        return Ok(0);
+    }
+
+    tracing::info!("Checking weather alerts for {} upcoming bookings", bookings.len());
+
+    // Get weather client
+    let weather_client = match WeatherClient::from_env() {
+        Ok(client) => client,
+        Err(e) => {
+            tracing::warn!("Weather client not available: {}. Skipping alert generation.", e);
+            return Ok(0);
+        }
+    };
+
+    let mut alert_count = 0;
+
+    // Group bookings by location to minimize API calls
+    let mut location_cache: std::collections::HashMap<String, core::weather::WeatherData> =
+        std::collections::HashMap::new();
+
+    for booking in bookings {
+        // Fetch student
+        let student = match sqlx::query_as::<_, Student>(
+            "SELECT id, name, email, phone, training_level FROM students WHERE id = ?"
+        )
+        .bind(&booking.student_id)
+        .fetch_one(db)
+        .await {
+            Ok(s) => s,
+            Err(e) => {
+                tracing::error!("Failed to fetch student {}: {}", booking.student_id, e);
+                continue;
+            }
+        };
+
+        // Get weather (cached by location)
+        let location_key = format!("{},{}", booking.departure_location.lat, booking.departure_location.lon);
+        let weather = if let Some(cached) = location_cache.get(&location_key) {
+            cached.clone()
+        } else {
+            match weather_client.fetch_current_weather(
+                booking.departure_location.lat,
+                booking.departure_location.lon,
+            ).await {
+                Ok(w) => {
+                    location_cache.insert(location_key.clone(), w.clone());
+                    w
+                }
+                Err(e) => {
+                    tracing::error!("Failed to fetch weather for booking {}: {}", booking.id, e);
+                    continue;
+                }
+            }
+        };
+
+        // Calculate weather score and severity
+        let score = calculate_weather_score(&student.training_level, &weather);
+        let severity = determine_severity(score as f64, &weather);
+
+        // Generate alert if weather is concerning (score < 9.0)
+        if score < 9.0 {
+            let message = create_alert_message(&severity, &weather, &student, score as f64);
+
+            let location_str = format!("({:.4}, {:.4})",
+                booking.departure_location.lat,
+                booking.departure_location.lon
+            );
+
+            let alert = json!({
+                "type": "weather_alert",
+                "id": uuid::Uuid::new_v4().to_string(),
+                "booking_id": booking.id,
+                "message": message,
+                "severity": severity_to_string(&severity),
+                "location": location_str,
+                "timestamp": Utc::now().to_rfc3339(),
+                "student_name": student.name,
+                "original_date": booking.scheduled_date.to_rfc3339(),
+            });
+
+            match notification_tx.send(serde_json::to_string(&alert)?) {
+                Ok(_) => {
+                    alert_count += 1;
+                    tracing::info!(
+                        "Sent {} alert for booking {} (score: {:.1})",
+                        severity_to_string(&severity),
+                        booking.id,
+                        score
+                    );
+                }
+                Err(e) => {
+                    tracing::error!("Failed to send alert for booking {}: {}", booking.id, e);
+                }
+            }
+        }
+    }
+
+    Ok(alert_count)
+}
+
+#[derive(Debug, Clone)]
+enum AlertSeverity {
+    Severe,
+    High,
+    Moderate,
+    Low,
+    Clear,
+}
+
+fn determine_severity(score: f64, weather: &core::weather::WeatherData) -> AlertSeverity {
+    // Check for critical conditions first
+    if weather.has_thunderstorms {
+        return AlertSeverity::Severe;
+    }
+
+    if weather.visibility_miles < 1.0 {  // < 1 mile
+        return AlertSeverity::Severe;
+    }
+
+    // Score-based severity
+    if score < 4.0 {
+        AlertSeverity::Severe
+    } else if score < 6.0 {
+        AlertSeverity::High
+    } else if score < 7.5 {
+        AlertSeverity::Moderate
+    } else if score < 9.0 {
+        AlertSeverity::Low
+    } else {
+        AlertSeverity::Clear
+    }
+}
+
+fn severity_to_string(severity: &AlertSeverity) -> &'static str {
+    match severity {
+        AlertSeverity::Severe => "severe",
+        AlertSeverity::High => "high",
+        AlertSeverity::Moderate => "moderate",
+        AlertSeverity::Low => "low",
+        AlertSeverity::Clear => "clear",
+    }
+}
+
+fn create_alert_message(
+    severity: &AlertSeverity,
+    weather: &core::weather::WeatherData,
+    student: &core::models::Student,
+    score: f64,
+) -> String {
+    use core::models::TrainingLevel;
+
+    let training_level_str = match student.training_level {
+        TrainingLevel::StudentPilot => "student pilot",
+        TrainingLevel::PrivatePilot => "private pilot",
+        TrainingLevel::InstrumentRated => "instrument-rated pilot",
+    };
+
+    match severity {
+        AlertSeverity::Severe => {
+            if weather.has_thunderstorms {
+                format!(
+                    "SEVERE WEATHER ALERT: Thunderstorms reported. Flight not safe for {}. Consider rescheduling.",
+                    training_level_str
+                )
+            } else if weather.visibility_miles < 1.0 {
+                format!(
+                    "SEVERE WEATHER ALERT: Visibility {:.1} miles, below safe minimums. Flight cancelled for safety.",
+                    weather.visibility_miles
+                )
+            } else {
+                format!(
+                    "SEVERE WEATHER ALERT: Dangerous conditions detected (score: {:.1}/10). Flight should be cancelled.",
+                    score
+                )
+            }
+        }
+        AlertSeverity::High => {
+            format!(
+                "HIGH ALERT: Poor weather conditions (score: {:.1}/10). Visibility {:.1} miles, winds {:.0} kt. Not recommended for {}.",
+                score,
+                weather.visibility_miles,
+                weather.wind_speed_knots,
+                training_level_str
+            )
+        }
+        AlertSeverity::Moderate => {
+            format!(
+                "MODERATE ALERT: Marginal weather conditions (score: {:.1}/10). Winds {:.0} kt, visibility {:.1} miles. Use caution.",
+                score,
+                weather.wind_speed_knots,
+                weather.visibility_miles
+            )
+        }
+        AlertSeverity::Low => {
+            format!(
+                "Weather advisory: Conditions may be challenging (score: {:.1}/10). Winds {:.0} kt. Monitor before departure.",
+                score,
+                weather.wind_speed_knots
+            )
+        }
+        AlertSeverity::Clear => {
+            String::from("Weather conditions are favorable for flight.")
+        }
+    }
 }
