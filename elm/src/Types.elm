@@ -29,10 +29,22 @@ type alias Booking =
     }
 
 
+type Severity
+    = Severe
+    | High
+    | Moderate
+    | Low
+    | Clear
+
+
 type alias Alert =
-    { alertType : String
+    { id : String
+    , alertType : String
     , bookingId : String
     , message : String
+    , severity : Severity
+    , location : String
+    , timestamp : String
     , studentName : Maybe String
     , originalDate : Maybe String
     }
@@ -123,7 +135,7 @@ type Msg
     | WebSocketMessageReceived String
     | WebSocketConnected
     | WebSocketDisconnected
-    | DismissAlert String
+    | DismissAlert String  -- Alert ID
     | ClearSuccessMessage
     | Tick Time.Posix
     | OpenRescheduleModal Booking

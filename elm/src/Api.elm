@@ -40,14 +40,49 @@ studentDecoder =
         (Decode.field "training_level" Decode.string)
 
 
+severityDecoder : Decoder Severity
+severityDecoder =
+    Decode.string
+        |> Decode.andThen
+            (\str ->
+                case String.toLower str of
+                    "severe" ->
+                        Decode.succeed Severe
+
+                    "high" ->
+                        Decode.succeed High
+
+                    "moderate" ->
+                        Decode.succeed Moderate
+
+                    "low" ->
+                        Decode.succeed Low
+
+                    "clear" ->
+                        Decode.succeed Clear
+
+                    _ ->
+                        Decode.succeed Moderate
+            )
+
+
 alertDecoder : Decoder Alert
 alertDecoder =
-    Decode.map5 Alert
-        (Decode.field "type" Decode.string)
-        (Decode.field "booking_id" Decode.string)
-        (Decode.field "message" Decode.string)
-        (Decode.maybe (Decode.field "student_name" Decode.string))
-        (Decode.maybe (Decode.field "original_date" Decode.string))
+    Decode.succeed Alert
+        |> andMap (Decode.oneOf [ Decode.field "id" Decode.string, Decode.field "booking_id" Decode.string ])
+        |> andMap (Decode.field "type" Decode.string)
+        |> andMap (Decode.field "booking_id" Decode.string)
+        |> andMap (Decode.field "message" Decode.string)
+        |> andMap (Decode.oneOf [ Decode.field "severity" severityDecoder, Decode.succeed Moderate ])
+        |> andMap (Decode.oneOf [ Decode.field "location" Decode.string, Decode.succeed "" ])
+        |> andMap (Decode.oneOf [ Decode.field "timestamp" Decode.string, Decode.succeed "" ])
+        |> andMap (Decode.maybe (Decode.field "student_name" Decode.string))
+        |> andMap (Decode.maybe (Decode.field "original_date" Decode.string))
+
+
+andMap : Decoder a -> Decoder (a -> b) -> Decoder b
+andMap =
+    Decode.map2 (|>)
 
 
 getBookings : (Result String (List Booking) -> msg) -> Cmd msg

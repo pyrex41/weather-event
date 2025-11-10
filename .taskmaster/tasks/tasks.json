@@ -967,7 +967,7 @@
             "title": "Define Alert Data Model and Types",
             "description": "Create Elm types for weather alerts, including severity levels, message content, and unique identifiers to support the banner component.",
             "dependencies": [],
-            "details": "In WeatherAlertBanner.elm, define a custom type for Alert with fields like id (String), severity (Severe | Moderate | Minor), message (String), and timestamp. Ensure the model includes a list of active alerts and integrates with the overall app model for persistence.",
+            "details": "In WeatherAlertBanner.elm, define a custom type for Alert with fields like id (String), severity (Severe | Moderate | Minor), message (String), and timestamp. Ensure the model includes a list of active alerts and integrates with the overall app model for persistence.\n<info added on 2025-11-10T18:41:35.208Z>\nImplemented Severity union type in Types.elm with 5 levels: Severe, High, Moderate, Low, Clear. Type-safe design prevents invalid states.\n</info added on 2025-11-10T18:41:35.208Z>",
             "status": "pending",
             "testStrategy": "Unit tests to verify type definitions and basic alert creation.",
             "parentId": "undefined"
@@ -979,7 +979,7 @@
             "dependencies": [
               1
             ],
-            "details": "In the view function of WeatherAlertBanner.elm, create HTML elements with [data-testid=\"weather-alert\"] for each alert, applying CSS classes for red (Severe), orange (Moderate), yellow (Minor), and including the alert message. Stack them vertically at the top of the dashboard.",
+            "details": "In the view function of WeatherAlertBanner.elm, create HTML elements with [data-testid=\"weather-alert\"] for each alert, applying CSS classes for red (Severe), orange (Moderate), yellow (Minor), and including the alert message. Stack them vertically at the top of the dashboard.\n<info added on 2025-11-10T18:41:50.921Z>\nImplemented severityDecoder in Api.elm using andMap pattern. Parses JSON severity strings (case-insensitive) with graceful fallback to Moderate. Enhanced alertDecoder with backward compatibility using Decode.oneOf for optional fields.\n</info added on 2025-11-10T18:41:50.921Z>",
             "status": "pending",
             "testStrategy": "Unit tests for view rendering with different severities and E2E tests to check visual appearance.",
             "parentId": "undefined"
@@ -991,7 +991,7 @@
             "dependencies": [
               1
             ],
-            "details": "Add dismiss buttons to each banner in the view, updating the model to remove dismissed alerts. In the update function, enforce a maximum of 5 alerts by removing the oldest (based on timestamp) when a new one is added. Ensure the list is sorted by severity or timestamp for display.",
+            "details": "Add dismiss buttons to each banner in the view, updating the model to remove dismissed alerts. In the update function, enforce a maximum of 5 alerts by removing the oldest (based on timestamp) when a new one is added. Ensure the list is sorted by severity or timestamp for display.\n<info added on 2025-11-10T18:42:02.418Z>\nImplemented enhanced viewAlert function in Main.elm (lines 460-533) with severity icons, CSS classes, location/timestamp display, and test IDs. Added formatTimestamp helper for ISO 8601 conversion. Updated DismissAlert handler to use alert IDs.\n</info added on 2025-11-10T18:42:02.418Z>",
             "status": "pending",
             "testStrategy": "Unit tests for dismissal logic and alert limit enforcement, including edge cases like adding the 6th alert.",
             "parentId": "undefined"
@@ -1004,7 +1004,7 @@
               1,
               3
             ],
-            "details": "In the main dashboard view, update the [data-testid=\"stat-alerts\"] element to show the length of the active alerts list from the model. Ensure this updates reactively when alerts are added or dismissed, and persists across page navigation by keeping it in the global model.",
+            "details": "In the main dashboard view, update the [data-testid=\"stat-alerts\"] element to show the length of the active alerts list from the model. Ensure this updates reactively when alerts are added or dismissed, and persists across page navigation by keeping it in the global model.\n<info added on 2025-11-10T18:42:20.696Z>\nAdded comprehensive severity-based CSS in style.css (100 lines). 5 alert classes (alert-severe/high/moderate/low/clear) with Tailwind colors, severity badges, alert-card styling, and responsive design. Bundle size: 6.45 kB CSS (+1.12 kB).\n</info added on 2025-11-10T18:42:20.696Z>",
             "status": "pending",
             "testStrategy": "E2E tests to verify the stat updates correctly on alert changes and persists across navigation.",
             "parentId": "undefined"

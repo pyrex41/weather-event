@@ -226,8 +226,8 @@ update msg model =
         WebSocketDisconnected ->
             ( { model | websocketStatus = Disconnected }, Cmd.none )
 
-        DismissAlert bookingId ->
-            ( { model | alerts = List.filter (\a -> a.bookingId /= bookingId) model.alerts }
+        DismissAlert alertId ->
+            ( { model | alerts = List.filter (\a -> a.id /= alertId) model.alerts }
             , Cmd.none
             )
 
@@ -459,14 +459,78 @@ viewAlerts model =
 
 viewAlert : Alert -> Html Msg
 viewAlert alert =
-    div [ class "alert alert-danger" ]
-        [ span [] [ text ("⚠️ " ++ alert.message) ]
+    let
+        severityClass =
+            case alert.severity of
+                Severe ->
+                    "severe"
+
+                High ->
+                    "high"
+
+                Moderate ->
+                    "moderate"
+
+                Low ->
+                    "low"
+
+                Clear ->
+                    "clear"
+
+        severityIcon =
+            case alert.severity of
+                Severe ->
+                    "⛈️"
+
+                High ->
+                    "🌧️"
+
+                Moderate ->
+                    "⚡"
+
+                Low ->
+                    "🌤️"
+
+                Clear ->
+                    "☀️"
+
+        locationText =
+            if String.isEmpty alert.location then
+                ""
+
+            else
+                " (" ++ alert.location ++ ")"
+
+        timestampText =
+            if String.isEmpty alert.timestamp then
+                ""
+
+            else
+                " - " ++ formatTimestamp alert.timestamp
+    in
+    div
+        [ class ("alert alert-" ++ severityClass)
+        , attribute "data-testid" "weather-alert"
+        ]
+        [ div [ class "alert-content" ]
+            [ span [ class "alert-icon" ] [ text (severityIcon ++ " ") ]
+            , span [ class "alert-message" ]
+                [ text (alert.message ++ locationText ++ timestampText) ]
+            ]
         , button
             [ class "alert-dismiss"
-            , onClick (DismissAlert alert.bookingId)
+            , attribute "data-testid" "dismiss-alert-btn"
+            , onClick (DismissAlert alert.id)
             ]
             [ text "×" ]
         ]
+
+
+formatTimestamp : String -> String
+formatTimestamp timestamp =
+    -- Simple formatting - just take the date/time part
+    -- In production, you'd use a proper time library
+    String.left 19 (String.replace "T" " " timestamp)
 
 
 viewContent : Model -> Html Msg
@@ -817,24 +881,73 @@ viewAlertsPage model =
 
 viewAlertCard : Alert -> Html Msg
 viewAlertCard alert =
+    let
+        severityIcon =
+            case alert.severity of
+                Severe ->
+                    "⛈️"
+
+                High ->
+                    "🌧️"
+
+                Moderate ->
+                    "⚡"
+
+                Low ->
+                    "🌤️"
+
+                Clear ->
+                    "☀️"
+
+        severityText =
+            case alert.severity of
+                Severe ->
+                    "SEVERE"
+
+                High ->
+                    "HIGH"
+
+                Moderate ->
+                    "MODERATE"
+
+                Low ->
+                    "LOW"
+
+                Clear ->
+                    "CLEAR"
+    in
     div [ class "alert-card" ]
-        [ h4 [] [ text ("⚠️ " ++ alert.alertType) ]
-        , p [] [ text alert.message ]
+        [ div [ class "alert-card-header" ]
+            [ h4 [] [ text (severityIcon ++ " " ++ alert.alertType) ]
+            , span [ class ("severity-badge severity-" ++ String.toLower severityText) ]
+                [ text severityText ]
+            ]
+        , p [ class "alert-card-message" ] [ text alert.message ]
+        , if not (String.isEmpty alert.location) then
+            p [ class "alert-card-detail" ] [ text ("Location: " ++ alert.location) ]
+
+          else
+            text ""
+        , if not (String.isEmpty alert.timestamp) then
+            p [ class "alert-card-detail" ] [ text ("Time: " ++ formatTimestamp alert.timestamp) ]
+
+          else
+            text ""
         , case alert.studentName of
             Just name ->
-                p [] [ text ("Student: " ++ name) ]
+                p [ class "alert-card-detail" ] [ text ("Student: " ++ name) ]
 
             Nothing ->
                 text ""
         , case alert.originalDate of
             Just date ->
-                p [] [ text ("Original Date: " ++ formatDateWithTimezone date) ]
+                p [ class "alert-card-detail" ] [ text ("Original Date: " ++ formatDateWithTimezone date) ]
 
             Nothing ->
                 text ""
         , button
             [ class "button button-secondary"
-            , onClick (DismissAlert alert.bookingId)
+            , onClick (DismissAlert alert.id)
             ]
             [ text "Dismiss" ]
         ]
