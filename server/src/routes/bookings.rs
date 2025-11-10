@@ -60,6 +60,8 @@ pub async fn list_bookings(
     Query(params): Query<PaginationParams>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<Vec<BookingResponse>>> {
+    tracing::debug!("Starting list_bookings");
+
     // Validate and sanitize pagination parameters
     let page = params.page.max(1);
     let limit = params.limit.clamp(1, 100); // Max 100 items per page
@@ -146,6 +148,8 @@ pub async fn get_reschedule_suggestions(
     Path(id): Path<String>,
     State(state): State<AppState>,
 ) -> ApiResult<Json<RescheduleOptionsResponse>> {
+    tracing::debug!("Starting reschedule suggestions for booking {}", id);
+
     // Fetch the booking
     let booking = sqlx::query_as::<_, Booking>(
         "SELECT id, student_id, aircraft_type, scheduled_date, departure_location, status FROM bookings WHERE id = ?"
@@ -154,6 +158,8 @@ pub async fn get_reschedule_suggestions(
     .fetch_optional(&state.db)
     .await?
     .ok_or_else(|| crate::error::ApiError::not_found("Booking"))?;
+
+    tracing::debug!("Found booking: {:?}", booking.id);
 
     // Fetch the student
     let student = sqlx::query_as::<_, Student>(

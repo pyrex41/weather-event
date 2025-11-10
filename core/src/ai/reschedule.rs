@@ -91,6 +91,12 @@ impl AiRescheduleClient {
     pub fn from_env(cache: Arc<AiCache>) -> Result<Self> {
         let api_key = std::env::var("OPENAI_API_KEY")
             .context("OPENAI_API_KEY environment variable not set")?;
+
+        // Skip AI if using placeholder key
+        if api_key == "your_openai_api_key_here" {
+            anyhow::bail!("OpenAI API key not configured, using placeholder");
+        }
+
         Ok(Self::new(api_key, cache))
     }
 
@@ -137,6 +143,11 @@ impl AiRescheduleClient {
         weather_forecast: &[WeatherData],
         instructor_schedule: &[Booking],
     ) -> Result<Vec<RescheduleOption>> {
+        // Skip AI call if using dummy/placeholder key
+        if self.api_key == "dummy_key" || self.api_key == "your_openai_api_key_here" {
+            anyhow::bail!("AI not configured, skipping API call");
+        }
+
         let prompt = self.build_prompt(booking, student, weather_forecast, instructor_schedule);
 
         #[derive(Serialize)]
@@ -180,7 +191,10 @@ impl AiRescheduleClient {
             .context("Failed to call OpenAI API")?;
 
         if !response.status().is_success() {
-            anyhow::bail!("OpenAI API returned status: {}", response.status());
+            let status = response.status();
+            let error_text = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
+            tracing::error!("OpenAI API error - Status: {}, Body: {}", status, error_text);
+            anyhow::bail!("OpenAI API returned status: {} - {}", status, error_text);
         }
 
         #[derive(Deserialize)]

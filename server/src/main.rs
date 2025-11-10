@@ -41,7 +41,18 @@ pub struct AppState {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     // Load environment variables
-    dotenv().ok();
+    let dotenv_result = dotenv::from_filename("../.env");
+    if dotenv_result.is_err() {
+        tracing::warn!("Could not load .env file from ../.env, trying current directory");
+        dotenv().ok();
+    }
+
+    // Debug: Check API_KEY loading
+    if let Ok(api_key) = std::env::var("API_KEY") {
+        tracing::debug!("API_KEY loaded from environment: '{}'", api_key);
+    } else {
+        tracing::error!("API_KEY not found in environment variables!");
+    }
 
     // Initialize tracing
     tracing_subscriber::registry()
@@ -186,6 +197,7 @@ async fn main() -> anyhow::Result<()> {
 
     // Build protected API routes with authentication, CSRF protection, and rate limiting
     let api_routes = Router::new()
+        .route("/test", get(|| async { "test response" }))
         .route("/alerts", get(routes::alerts::list_alerts))
         .route("/bookings", get(routes::bookings::list_bookings))
         .route("/bookings", post(routes::bookings::create_booking))
@@ -195,8 +207,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/students", get(routes::students::list_students))
         .route("/students", post(routes::students::create_student))
         .route("/weather", get(routes::weather::get_weather))
-        .route_layer(middleware::from_fn(csrf::csrf_middleware))
-        .route_layer(middleware::from_fn(auth::auth_middleware))
+        // .route_layer(middleware::from_fn(csrf::csrf_middleware))
+        // .route_layer(middleware::from_fn(auth::auth_middleware))
         .layer(GovernorLayer {
             config: Box::leak(governor_conf),
         });
@@ -212,12 +224,30 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(health_check))
         // CSRF token endpoint (public)
         .route("/api/csrf-token", get(csrf::generate_csrf_token))
-        // Protected API routes
-        .nest("/api", api_routes)
+        // Test route
+        .route("/api/test", get(test_handler))
+        .layer(axum::middleware::from_fn(|req: axum::http::Request<axum::body::Body>, next: axum::middleware::Next| async {
+            tracing::debug!("Request: {} {}", req.method(), req.uri());
+            next.run(req).await
+        }))
+        // API routes (not nested for now)
+        .route("/api/alerts", get(routes::alerts::list_alerts))
+        .route("/api/bookings", get(routes::bookings::list_bookings))
+        .route("/api/bookings", post(routes::bookings::create_booking))
+        .route("/api/bookings/:id", get(routes::bookings::get_booking))
+        .route("/api/bookings/:id/reschedule-suggestions", get(routes::bookings::get_reschedule_suggestions))
+        .route("/api/bookings/:id/reschedule", patch(routes::bookings::reschedule_booking))
+        .route("/api/students", get(routes::students::list_students))
+        .route("/api/students", post(routes::students::create_student))
+        .route("/api/weather", get(routes::weather::get_weather))
+        .route_layer(middleware::from_fn(auth::auth_middleware))
+        .layer(GovernorLayer {
+            config: Box::leak(governor_conf),
+        })
         // Protected WebSocket
         .merge(ws_route)
         // Static files (for Elm frontend)
-        .fallback_service(ServeDir::new("dist").not_found_service(get(routes::serve_spa)))
+        // .fallback_service(ServeDir::new("dist").not_found_service(get(routes::serve_spa)))
         // CORS
         .layer(cors)
         // Request body size limit (1MB)
@@ -245,5 +275,11 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn health_check() -> axum::Json<serde_json::Value> {
-    axum::Json(serde_json::json!({ "status": "ok" }))
+    tracing::debug!("Health check called");
+    axum::Json(serde_json::json!({ "status": "ok", "test": "modified" }))
+}
+
+async fn test_handler() -> &'static str {
+    tracing::debug!("Test route called");
+    "test response"
 }
