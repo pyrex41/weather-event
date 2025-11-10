@@ -1,6 +1,7 @@
 pub mod alerts;
 pub mod bookings;
 pub mod students;
+pub mod weather;
 pub mod websocket;
 
 use axum::{

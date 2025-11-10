@@ -62,7 +62,96 @@ struct ForecastResponse {
     list: Vec<OpenWeatherMapResponse>,
 }
 
+#[derive(Debug, Deserialize)]
+struct OneCallResponse {
+    lat: f64,
+    lon: f64,
+    timezone: String,
+    timezone_offset: i64,
+    current: OneCallWeatherData,
+    hourly: Vec<OneCallWeatherData>,
+    daily: Vec<OneCallDailyData>,
+    alerts: Option<Vec<OneCallAlert>>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OneCallWeatherData {
+    dt: i64,
+    temp: f64,
+    feels_like: f64,
+    pressure: f64,
+    humidity: f64,
+    dew_point: f64,
+    uvi: f64,
+    clouds: f64,
+    visibility: Option<f64>,
+    wind_speed: f64,
+    wind_deg: f64,
+    wind_gust: Option<f64>,
+    weather: Vec<OneCallWeatherCondition>,
+    pop: Option<f64>,
+    rain: Option<serde_json::Value>,
+    snow: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+struct OneCallDailyData {
+    dt: i64,
+    sunrise: i64,
+    sunset: i64,
+    temp: OneCallTemp,
+    feels_like: OneCallTemp,
+    pressure: f64,
+    humidity: f64,
+    dew_point: f64,
+    wind_speed: f64,
+    wind_deg: f64,
+    wind_gust: Option<f64>,
+    weather: Vec<OneCallWeatherCondition>,
+    clouds: f64,
+    pop: f64,
+    rain: Option<f64>,
+    snow: Option<f64>,
+    uvi: f64,
+}
+
+#[derive(Debug, Deserialize)]
+struct OneCallTemp {
+    day: f64,
+    min: f64,
+    max: f64,
+    night: f64,
+    eve: f64,
+    morn: f64,
+}
+
+#[derive(Debug, Deserialize)]
+struct OneCallWeatherCondition {
+    id: i64,
+    main: String,
+    description: String,
+    icon: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct OneCallAlert {
+    sender_name: String,
+    event: String,
+    start: i64,
+    end: i64,
+    description: String,
+    tags: Vec<String>,
+}
+
 impl WeatherClient {
+    pub fn base_url(&self) -> &str {
+        &self.base_url
+    }
+
+    pub fn api_key(&self) -> &str {
+        &self.api_key
+    }
+
     pub fn new(api_key: String, base_url: Option<String>) -> Self {
         let client = reqwest::Client::builder()
             .timeout(Duration::from_secs(30))
@@ -81,15 +170,28 @@ impl WeatherClient {
             .context("WEATHER_API_KEY environment variable not set")?;
         let base_url = std::env::var("WEATHER_API_BASE_URL").ok();
 
+        tracing::debug!("WeatherClient::from_env - api_key: {}, base_url: {:?}", api_key, base_url);
+
         Ok(Self::new(api_key, base_url))
     }
 
     pub async fn fetch_current_weather(&self, lat: f64, lon: f64) -> Result<WeatherData> {
+        tracing::debug!("WeatherClient base_url: {}", self.base_url);
+
+        // For now, always use 2.5 API to avoid One Call issues
+        tracing::debug!("Using 2.5 API: {}", self.base_url);
         self.retry_with_backoff(|| self.fetch_current_weather_inner(lat, lon), 3).await
     }
 
     pub async fn fetch_forecast(&self, lat: f64, lon: f64) -> Result<Vec<WeatherData>> {
-        self.retry_with_backoff(|| self.fetch_forecast_inner(lat, lon), 3).await
+        // Try One Call API 3.0 first, fallback to 2.5 API
+        match self.fetch_onecall_data(lat, lon).await {
+            Ok(data) => Ok(data.hourly.into_iter().map(|h| Self::convert_to_weather_data_from_onecall(&h)).collect()),
+            Err(_) => {
+                tracing::debug!("One Call API failed, falling back to 2.5 API");
+                self.retry_with_backoff(|| self.fetch_forecast_inner(lat, lon), 3).await
+            }
+        }
     }
 
     async fn fetch_current_weather_inner(&self, lat: f64, lon: f64) -> Result<WeatherData> {
@@ -99,7 +201,7 @@ impl WeatherClient {
         );
 
         // Log without exposing API key
-        tracing::debug!("Fetching current weather for lat={}, lon={}", lat, lon);
+        tracing::debug!("Fetching current weather for lat={}, lon={} from URL: {}", lat, lon, url.replace(&self.api_key, "[API_KEY]"));
 
         let response = self.client
             .get(&url)
@@ -107,25 +209,32 @@ impl WeatherClient {
             .await
             .context("Failed to fetch current weather")?;
 
-        if !response.status().is_success() {
-            anyhow::bail!("Weather API returned status: {}", response.status());
+        let status = response.status();
+        tracing::debug!("Weather API response status: {}", status);
+
+        if !status.is_success() {
+            let body = response.text().await.unwrap_or_else(|_| "Failed to read response body".to_string());
+            tracing::error!("Weather API error response body: {}", body);
+            anyhow::bail!("Weather API returned status: {} with body: {}", status, body);
         }
 
-        let data: OpenWeatherMapResponse = response
-            .json()
-            .await
-            .context("Failed to parse weather response")?;
+        let body = response.text().await.context("Failed to read response body")?;
+        tracing::debug!("Weather API response body: {}", body);
+
+        let data: OpenWeatherMapResponse = serde_json::from_str(&body)
+            .context("Failed to parse weather response JSON")?;
 
         Ok(Self::convert_to_weather_data(data))
     }
 
     async fn fetch_forecast_inner(&self, lat: f64, lon: f64) -> Result<Vec<WeatherData>> {
+        // NOTE: OpenWeatherMap API requires API key in query parameter
         let url = format!(
             "{}/forecast?lat={}&lon={}&appid={}&cnt=56",
             self.base_url, lat, lon, self.api_key
         );
 
-        // Log without exposing API key
+        // Log without exposing API key - only log coordinates, not the URL
         tracing::debug!("Fetching weather forecast for lat={}, lon={}", lat, lon);
 
         let response = self.client
@@ -144,6 +253,34 @@ impl WeatherClient {
             .context("Failed to parse forecast response")?;
 
         Ok(data.list.into_iter().map(Self::convert_to_weather_data).collect())
+    }
+
+    async fn fetch_onecall_data(&self, lat: f64, lon: f64) -> Result<OneCallResponse> {
+        // NOTE: OpenWeatherMap API requires API key in query parameter
+        let url = format!(
+            "{}/onecall?lat={}&lon={}&appid={}",
+            self.base_url, lat, lon, self.api_key
+        );
+
+        // Log without exposing API key
+        tracing::debug!("Fetching One Call weather data for lat={}, lon={}", lat, lon);
+
+        let response = self.client
+            .get(&url)
+            .send()
+            .await
+            .context("Failed to fetch One Call data")?;
+
+        if !response.status().is_success() {
+            anyhow::bail!("One Call API returned status: {}", response.status());
+        }
+
+        let data: OneCallResponse = response
+            .json()
+            .await
+            .context("Failed to parse One Call response")?;
+
+        Ok(data)
     }
 
     fn convert_to_weather_data(data: OpenWeatherMapResponse) -> WeatherData {
@@ -172,6 +309,42 @@ impl WeatherClient {
                 None // Clear or scattered
             }
         });
+
+        WeatherData {
+            visibility_miles,
+            wind_speed_knots,
+            ceiling_ft,
+            temperature_f,
+            conditions,
+            has_thunderstorms,
+            has_icing,
+            date_time: DateTime::from_timestamp(data.dt, 0).unwrap_or_else(Utc::now),
+        }
+    }
+
+    fn convert_to_weather_data_from_onecall(data: &OneCallWeatherData) -> WeatherData {
+        let visibility_miles = data.visibility.unwrap_or(10000.0) * METERS_TO_MILES;
+        let wind_speed_knots = data.wind_speed * MS_TO_KNOTS;
+        let temperature_f = kelvin_to_fahrenheit(data.temp);
+
+        let conditions = data.weather.first()
+            .map(|w| w.description.clone())
+            .unwrap_or_else(|| "Unknown".to_string());
+
+        let has_thunderstorms = data.weather.iter()
+            .any(|w| w.main.to_lowercase().contains("thunderstorm"));
+
+        // Icing risk: temperature below freezing and cloudy conditions
+        let has_icing = temperature_f < 32.0 && data.clouds > 50.0;
+
+        // Estimate ceiling from cloud data (simplified)
+        let ceiling_ft = if data.clouds > 80.0 {
+            Some(2000.0) // Low clouds
+        } else if data.clouds > 50.0 {
+            Some(5000.0) // Mid clouds
+        } else {
+            None // Clear or scattered
+        };
 
         WeatherData {
             visibility_miles,

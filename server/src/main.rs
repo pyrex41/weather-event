@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::broadcast;
 use tower_http::cors::CorsLayer;
+use tower_http::limit::RequestBodyLimitLayer;
 use tower_http::services::ServeDir;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 use tower_governor::{
@@ -64,7 +65,13 @@ async fn main() -> anyhow::Result<()> {
     let db = SqlitePool::connect(&database_url)
         .await
         .map_err(|e| {
-            tracing::error!("Failed to connect to database '{}': {}", database_url, e);
+            // Sanitize database URL to hide any credentials
+            let sanitized_url = if database_url.contains('@') {
+                database_url.split('@').last().unwrap_or("***")
+            } else {
+                &database_url
+            };
+            tracing::error!("Failed to connect to database '{}': {}", sanitized_url, e);
             e
         })?;
 
@@ -101,10 +108,11 @@ async fn main() -> anyhow::Result<()> {
     let weather_client = Arc::new(
         WeatherClient::from_env()
             .map_err(|e| {
-                tracing::warn!("Failed to initialize weather client: {}. Weather features may not work.", e);
+                tracing::error!("Failed to initialize weather client: {}. Using fallback.", e);
                 e
             })
             .unwrap_or_else(|_| {
+                tracing::warn!("Using fallback WeatherClient with empty key");
                 // Fallback: create client with empty key
                 WeatherClient::new(String::new(), None)
             })
@@ -129,31 +137,33 @@ async fn main() -> anyhow::Result<()> {
         weather_client,
     };
 
-    // Configure CORS
+    // Configure CORS - SECURITY: No wildcard origins allowed
     let cors = if let Ok(origins_str) = std::env::var("ALLOWED_ORIGINS") {
-        if origins_str.trim() == "*" {
-            // Allow any origin (only for development)
-            tracing::warn!("CORS configured to allow any origin - NOT RECOMMENDED FOR PRODUCTION");
-            CorsLayer::new()
-                .allow_origin(tower_http::cors::Any)
-                .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PATCH])
-                .allow_headers([axum::http::header::CONTENT_TYPE])
-        } else {
-            // Production: use specified origins
-            let origins: Vec<_> = origins_str
-                .split(',')
-                .filter_map(|s| s.trim().parse().ok())
-                .collect();
+        let origins: Vec<_> = origins_str
+            .split(',')
+            .filter_map(|s| {
+                let trimmed = s.trim();
+                if trimmed.is_empty() {
+                    None
+                } else {
+                    trimmed.parse().ok()
+                }
+            })
+            .collect();
 
-            tracing::info!("CORS configured with allowed origins: {:?}", origins);
-
-            CorsLayer::new()
-                .allow_origin(origins)
-                .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PATCH])
-                .allow_headers([axum::http::header::CONTENT_TYPE])
+        if origins.is_empty() {
+            tracing::error!("ALLOWED_ORIGINS is set but contains no valid origins");
+            panic!("FATAL: ALLOWED_ORIGINS environment variable contains no valid origins");
         }
+
+        tracing::info!("CORS configured with {} allowed origin(s): {:?}", origins.len(), origins);
+
+        CorsLayer::new()
+            .allow_origin(origins)
+            .allow_methods([axum::http::Method::GET, axum::http::Method::POST, axum::http::Method::PATCH])
+            .allow_headers([axum::http::header::CONTENT_TYPE])
     } else {
-        // Development: restrictive default
+        // Development fallback: restrictive default
         tracing::warn!("ALLOWED_ORIGINS not set, using default (http://localhost:8000)");
         let origins = vec!["http://localhost:8000".parse().unwrap()];
         CorsLayer::new()
@@ -162,9 +172,16 @@ async fn main() -> anyhow::Result<()> {
             .allow_headers([axum::http::header::CONTENT_TYPE])
     };
 
-    // Build protected API routes with authentication
-    // Note: Rate limiting temporarily disabled for testing
-    // TODO: Add back with proper IP extraction configuration
+    // Configure rate limiting
+    let governor_conf = Box::new(
+        GovernorConfigBuilder::default()
+            .per_second(10)
+            .burst_size(50)
+            .finish()
+            .unwrap(),
+    );
+
+    // Build protected API routes with authentication and rate limiting
     let api_routes = Router::new()
         .route("/alerts", get(routes::alerts::list_alerts))
         .route("/bookings", get(routes::bookings::list_bookings))
@@ -174,6 +191,18 @@ async fn main() -> anyhow::Result<()> {
         .route("/bookings/:id/reschedule", patch(routes::bookings::reschedule_booking))
         .route("/students", get(routes::students::list_students))
         .route("/students", post(routes::students::create_student))
+        .route_layer(middleware::from_fn(auth::auth_middleware))
+        .layer(GovernorLayer {
+            config: Box::leak(governor_conf),
+        });
+
+    // Weather route without auth for debugging
+    let weather_route = Router::new()
+        .route("/weather", get(routes::weather::get_weather));
+
+    // Build protected WebSocket route
+    let ws_route = Router::new()
+        .route("/ws", get(websocket::ws_handler))
         .route_layer(middleware::from_fn(auth::auth_middleware));
 
     // Build main router
@@ -182,12 +211,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(health_check))
         // Protected API routes
         .nest("/api", api_routes)
-        // WebSocket (public for now - add auth if needed)
-        .route("/ws", get(websocket::ws_handler))
+        // Protected WebSocket
+        .merge(ws_route)
         // Static files (for Elm frontend)
         .fallback_service(ServeDir::new("dist").not_found_service(get(routes::serve_spa)))
         // CORS
         .layer(cors)
+        // Request body size limit (1MB)
+        .layer(RequestBodyLimitLayer::new(1024 * 1024))
         // State
         .with_state(state);
 
@@ -201,7 +232,7 @@ async fn main() -> anyhow::Result<()> {
     });
 
     // Start server
-    let addr = SocketAddr::from(([0, 0, 0, 0], 3000));
+    let addr = SocketAddr::from(([0, 0, 0, 0], 3003));
     tracing::info!("Server listening on {}", addr);
 
     let listener = tokio::net::TcpListener::bind(addr).await?;
