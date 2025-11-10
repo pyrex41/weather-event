@@ -70,7 +70,10 @@ type alias Model =
     , bookings : List Booking
     , students : List Student
     , alerts : List Alert
-    , loading : Bool
+    , bookingsLoading : Bool
+    , studentsLoading : Bool
+    , alertsLoading : Bool
+    , formSubmitting : Bool
     , error : Maybe String
     , successMessage : Maybe String
     , bookingFormErrors : List FormError
