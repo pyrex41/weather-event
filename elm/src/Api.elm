@@ -179,6 +179,12 @@ rescheduleBooking bookingId newDateTime toMsg =
         }
 
 
+-- API Error response decoder
+apiErrorDecoder : Decoder String
+apiErrorDecoder =
+    Decode.at [ "error", "message" ] Decode.string
+
+
 expectJson : (Result String a -> msg) -> Decoder a -> Http.Expect msg
 expectJson toMsg decoder =
     Http.expectStringResponse toMsg <|
@@ -188,13 +194,20 @@ expectJson toMsg decoder =
                     Err ("Bad URL: " ++ url)
 
                 Http.Timeout_ ->
-                    Err "Timeout"
+                    Err "Request timed out. Please try again."
 
                 Http.NetworkError_ ->
-                    Err "Network error"
+                    Err "Network error. Please check your connection."
 
-                Http.BadStatus_ metadata _ ->
-                    Err ("HTTP " ++ String.fromInt metadata.statusCode)
+                Http.BadStatus_ metadata body ->
+                    -- Try to parse structured API error response first
+                    case Decode.decodeString apiErrorDecoder body of
+                        Ok errorMessage ->
+                            Err errorMessage
+
+                        Err _ ->
+                            -- Fallback to generic HTTP error
+                            Err ("HTTP " ++ String.fromInt metadata.statusCode ++ ": Request failed")
 
                 Http.GoodStatus_ _ body ->
                     case Decode.decodeString decoder body of
@@ -202,4 +215,4 @@ expectJson toMsg decoder =
                             Ok value
 
                         Err err ->
-                            Err (Decode.errorToString err)
+                            Err ("Failed to parse response: " ++ Decode.errorToString err)
